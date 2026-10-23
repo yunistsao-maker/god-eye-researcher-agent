@@ -26,6 +26,7 @@ from constructs import Construct
 ROOT = Path(__file__).resolve().parents[2]
 TOOLS_SRC = str(ROOT / "tools" / "src")
 RUNTIME_ARN_PARAM = "/god-eye-researcher/research-runtime-arn"
+WEB_URL_PARAM = "/god-eye-researcher/web-url"   # written by WebStack; read when an end-of-run email links to the app
 
 
 class BaseStack(Stack):
@@ -166,7 +167,21 @@ class BaseStack(Stack):
             tracing_enabled=True,
         )
 
-        project_fn = fn("ProjectTools", "project_tools.handler", env={"CLEANUP_STATE_MACHINE_ARN": self.cleanup_machine.state_machine_arn})
+        # Optional end-of-run email (project_notify): -c notifyFromEmail=research@example.com, an address or domain
+        # already verified in Amazon SES in this region (and out of the SES sandbox to reach unverified recipients).
+        notify_from = self.node.try_get_context("notifyFromEmail") or ""
+        self.email_notifications = bool(notify_from)
+        project_env = {"CLEANUP_STATE_MACHINE_ARN": self.cleanup_machine.state_machine_arn}
+        if notify_from:
+            project_env.update({"NOTIFY_FROM": notify_from, "USER_POOL_ID": self.user_pool.user_pool_id, "WEB_URL_PARAM": WEB_URL_PARAM})
+        project_fn = fn("ProjectTools", "project_tools.handler", env=project_env)
+        if notify_from:
+            project_fn.add_to_role_policy(iam.PolicyStatement(
+                actions=["ses:SendEmail"], resources=[f"arn:aws:ses:{self.region}:{self.account}:identity/*"],
+                conditions={"StringEquals": {"ses:FromAddress": notify_from.split("<")[-1].rstrip(">").strip()}}))
+            project_fn.add_to_role_policy(iam.PolicyStatement(actions=["cognito-idp:ListUsers"], resources=[self.user_pool.user_pool_arn]))
+            project_fn.add_to_role_policy(iam.PolicyStatement(
+                actions=["ssm:GetParameter"], resources=[f"arn:aws:ssm:{self.region}:{self.account}:parameter{WEB_URL_PARAM}"]))
         data_fn = fn("DataTools", "data_tools.handler")
         # Optional second search index / extractor (Tavily or Exa): pass an existing Secrets Manager secret holding
         # {"provider": "tavily" | "exa", "apiKey": "..."} with -c searchSecretArn=arn:aws:secretsmanager:...
@@ -246,6 +261,7 @@ class BaseStack(Stack):
             "RuntimeArnParam": RUNTIME_ARN_PARAM,
             "CleanupStateMachineArn": self.cleanup_machine.state_machine_arn,
             "SecondarySearch": "on" if search_secret_arn else "off",
+            "EmailNotifications": "on" if notify_from else "off",
         }
         for key, value in outputs.items():
             CfnOutput(self, key, value=value)

@@ -44,6 +44,7 @@ FINDING = {
         "claims": {"type": "array", "description": "Atomic claims, each backed by verbatim quotes from pages read with fetch_page (projectId set)",
                    "items": {"type": "object", "properties": {
                        "text": {"type": "string"},
+                       "updates": {"type": "string", "description": "Incremental runs: the claimId of an earlier claim this one replaces"},
                        "evidence": {"type": "array", "items": {"type": "object", "properties": {
                            "docId": {"type": "string", "description": "docId returned by fetch_page"},
                            "quote": {"type": "string", "description": "Exact passage copied from the page text, 8-600 chars"},
@@ -56,13 +57,31 @@ REQUIREMENTS = {"type": "array", "description": "What a complete answer must cov
                                                            "text": {"type": "string"}}}}
 
 SPEC = {"type": "object", "description": "A sub-UI spec as defined in contracts/ui-spec.schema.json"}
+BRIEF = {"type": "object", "description": "Research brief: depth (quick|standard|deep), audience, startDate (YYYY-MM-DD), "
+                                        "includeDomains, excludeDomains, notes",
+         "properties": {"depth": {"type": "string"}, "audience": {"type": "string"}, "startDate": {"type": "string"},
+                        "includeDomains": {"type": "array", "items": {"type": "string"}},
+                        "excludeDomains": {"type": "array", "items": {"type": "string"}}, "notes": {"type": "string"}}}
+SUB_QUESTIONS = {"type": "array", "items": {"type": "object", "properties": {
+    "findingId": {"type": "string"}, "question": {"type": "string"}, "dataShape": {"type": "string", "description": SHAPES},
+    "round": {"type": "integer", "description": "1 for the initial plan, 2+ for follow-up rounds"},
+    "version": {"type": "integer", "description": "The run this sub-question belongs to (incremental runs)"},
+    "updates": {"type": "string", "description": "Incremental runs: the earlier findingId this sub-question re-researches"}}}}
+CITATIONS = {"type": "object", "description": "Maps each [C#] marker to {claimId, findingId}"}
 
 PROJECT_TOOLS = [
-    tool("project_save", "Create a project (status running) or update its status. status completed writes graph.json and manifest.json to S3.",
-         {"projectId": PROJECT_ID, "status": {"type": "string", "description": "running | completed | failed"},
+    tool("project_save", "Create a project (status draft or running) or update its status. running on a draft starts it; running with "
+         "reopen on a completed project starts an incremental run. status completed writes graph.json and manifest.json to S3. "
+         "Returns the user's steering notes while running.",
+         {"projectId": PROJECT_ID, "status": {"type": "string", "description": "draft | running | completed | failed"},
           "topic": {"type": "string"}, "parentProjectId": {"type": "string"}, "message": {"type": "string"},
-          "runtimeSessionId": {"type": "string"}},
+          "runtimeSessionId": {"type": "string"}, "brief": BRIEF, "reopen": {"type": "boolean"}},
          ["projectId", "status"]),
+    tool("project_steer", "Redirect a running project (kind redirect, with text) or ask it to wrap up with what it has (kind finish).",
+         {"projectId": PROJECT_ID, "kind": {"type": "string", "description": "redirect | finish"}, "text": {"type": "string"}},
+         ["projectId", "kind"]),
+    tool("project_notify", "Turn the end-of-run email on or off for a project.",
+         {"projectId": PROJECT_ID, "enabled": {"type": "boolean"}}, ["projectId", "enabled"]),
     tool("project_stop", "Stop a running project for good: status becomes stopped, later writes are refused, and project.stopped is "
          "announced. Idempotent. Returns the runtime session id so the caller can also stop the research runtime.",
          {"projectId": PROJECT_ID}, ["projectId"]),
@@ -73,11 +92,13 @@ PROJECT_TOOLS = [
 ]
 
 DATA_TOOLS = [
+    tool("plan_propose", "Save a plan for the user to review before a draft project starts, and announce it to the UI.",
+         {"projectId": PROJECT_ID, "subQuestions": SUB_QUESTIONS, "requirements": REQUIREMENTS, "brief": BRIEF,
+          "by": {"type": "string", "description": "agent | user"}},
+         ["projectId", "subQuestions"]),
     tool("plan_save", "Save the full research plan (all rounds) and announce it to the UI.",
-         {"projectId": PROJECT_ID, "subQuestions": {"type": "array", "items": {"type": "object", "properties": {
-             "findingId": {"type": "string"}, "question": {"type": "string"}, "dataShape": {"type": "string", "description": SHAPES},
-             "round": {"type": "integer", "description": "1 for the initial plan, 2+ for follow-up rounds"}}}},
-          "requirements": REQUIREMENTS},
+         {"projectId": PROJECT_ID, "subQuestions": SUB_QUESTIONS, "requirements": REQUIREMENTS,
+          "steerIds": {"type": "array", "items": {"type": "string"}, "description": "The user's directions this round applies"}},
          ["projectId", "subQuestions"]),
     tool("coverage_save", "Save how well the findings so far cover each requirement, and announce it to the UI.",
          {"projectId": PROJECT_ID, "round": {"type": "integer"},
@@ -90,7 +111,8 @@ DATA_TOOLS = [
           "contradictions": {"type": "array", "items": {"type": "string"}},
           "gaps": {"type": "array", "items": {"type": "string"}},
           "followUps": {"type": "array", "items": {"type": "string"}},
-          "citations": {"type": "object", "description": "Maps each [C#] marker in the report to {claimId, findingId}"},
+          "citations": CITATIONS,
+          "changes": {"type": "object", "description": "Incremental runs: {newClaims, updatedClaims}"},
           "verification": {"type": "object", "description": "Sentence-level check results: citedSentences, supported, partial, "
                            "unsupported, revised, removed, uncitedSentences, unknownCitations, claimsCited, precisionBefore, "
                            "precisionAfter, deadUrls"}},
@@ -99,6 +121,11 @@ DATA_TOOLS = [
          "claim status (asserted, corroborated, contested) is computed from independent publishers, then relations are computed "
          "and the finding is pushed to the UI.",
          {"projectId": PROJECT_ID, "finding": FINDING}, ["projectId", "finding"]),
+    tool("qa_write", "Save the answer to a follow-up question about the report and announce it to the UI.",
+         {"projectId": PROJECT_ID, "qaId": {"type": "string"}, "question": {"type": "string"}, "selection": {"type": "string"},
+          "answer": {"type": "string", "description": "Markdown citing claims as [C#]"}, "citations": CITATIONS,
+          "needsResearch": {"type": "boolean"}, "researchQuestion": {"type": "string"}},
+         ["projectId", "qaId", "question", "answer"]),
     tool("ui_template_get", "Look up the shared sub-UI template for a dataShape.", {"dataShape": {"type": "string", "description": SHAPES}}, ["dataShape"]),
     tool("ui_spec_write", "Validate a sub-UI spec against the component whitelist and the finding, save it and push it to the UI.",
          {"projectId": PROJECT_ID, "findingId": {"type": "string"}, "spec": SPEC, "fromCache": {"type": "boolean"}},

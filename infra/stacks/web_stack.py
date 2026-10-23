@@ -16,9 +16,10 @@ from aws_cdk import aws_cloudfront as cf
 from aws_cdk import aws_cloudfront_origins as origins
 from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_s3_deployment as s3deploy
+from aws_cdk import aws_ssm as ssm
 from constructs import Construct
 
-from .base_stack import BaseStack
+from .base_stack import WEB_URL_PARAM, BaseStack
 
 ROOT = Path(__file__).resolve().parents[2]
 DIST = ROOT / "frontend" / "dist"
@@ -88,6 +89,7 @@ class WebStack(Stack):
             "eventsHttpEndpoint": f"https://{base.events.http_dns}/event",
             "agentsBaseUrl": "",
             "toolsMcpUrl": "/mcp",
+            "emailNotifications": base.email_notifications,
         }
         sources = [s3deploy.Source.json_data("config.json", config)]
         if DIST.exists():
@@ -96,3 +98,6 @@ class WebStack(Stack):
                                   distribution=dist, distribution_paths=["/index.html", "/config.json"], prune=True)
 
         CfnOutput(self, "WebUrl", value=f"https://{dist.distribution_domain_name}")
+        # The end-of-run email links here (tools/src/common/notify.py).
+        ssm.StringParameter(self, "WebUrlParameter", parameter_name=WEB_URL_PARAM,
+                            string_value=f"https://{dist.distribution_domain_name}")

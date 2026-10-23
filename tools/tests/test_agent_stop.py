@@ -221,3 +221,35 @@ def test_heartbeat_turns_a_stopped_refusal_into_a_stop():
     assert noticed == [1]
     with pytest.raises(ToolCallError):
         main._heartbeat(Gw(ToolCallError("throttled")), PID, lambda: noticed.append(1))()
+
+
+# --- the other actions ------------------------------------------------------------------------------
+
+def test_plan_and_ask_validate_before_starting(monkeypatch):
+    started = []
+    monkeypatch.setattr(main, "TOOLS_GATEWAY_URL", "https://gw.example/mcp")
+    monkeypatch.setattr(main, "_side_task", lambda name, payload, ctx, work: started.append(name) or {"status": "accepted"})
+    assert "Unsupported action" in main.invoke({"action": "pause", "projectId": PID}, context())["error"]
+    assert "topic" in main.invoke({"action": "plan", "projectId": PID, "topic": "x"}, context())["error"]
+    assert main.invoke({"action": "plan", "projectId": PID, "topic": "AI 視覺檢測"}, context()) == {"status": "accepted"}
+    assert "qaId" in main.invoke({"action": "ask", "projectId": PID, "qaId": "1", "question": "為什麼？"}, context())["error"]
+    assert "question" in main.invoke({"action": "ask", "projectId": PID, "qaId": "qa-0001", "question": ""}, context())["error"]
+    assert main.invoke({"action": "ask", "projectId": PID, "qaId": "qa-0001", "question": "為什麼？"}, context())["status"] == "accepted"
+    assert started == ["plan", "ask"]
+
+
+def test_side_task_needs_a_token(monkeypatch):
+    monkeypatch.setattr(main, "TOOLS_GATEWAY_URL", "https://gw.example/mcp")
+    no_auth = SimpleNamespace(request_headers={}, session_id=RUN_SESSION)
+    assert "Authorization" in main.invoke({"action": "plan", "projectId": PID, "topic": "AI 視覺檢測"}, no_auth)["error"]
+
+
+def test_heartbeat_hands_steering_to_the_run():
+    got = []
+
+    class Gw:
+        def call(self, target, tool, **args):
+            return {"ok": True, "steering": [{"steerId": "s-abcdef", "kind": "finish"}]}
+
+    main._heartbeat(Gw(), PID, lambda: got.append("stopped"), got.append)()
+    assert got == [[{"steerId": "s-abcdef", "kind": "finish"}]]

@@ -13,7 +13,7 @@ from strands.hooks import AfterToolCallEvent, BeforeModelCallEvent, BeforeToolCa
 from strands.models.bedrock import BedrockModel
 
 from . import prompts
-from .models import FindingDraft, PlanDraft, ReviewDraft, ReviseDraft, UiSpecDraft, VerifyDraft
+from .models import AnswerDraft, FindingDraft, PlanDraft, ReviewDraft, ReviseDraft, UiSpecDraft, VerifyDraft
 from .watch import AgentActivity, AgentCancelled
 
 log = logging.getLogger(__name__)
@@ -170,8 +170,12 @@ class StrandsLlm:
         return _structured(agent, f"Research topic: {topic}", activity)
 
     def research(self, question: str, shape: str, tools: list, feedback: str = "",
-                 activity: Optional[AgentActivity] = None, reads: int = 4) -> FindingDraft:
+                 activity: Optional[AgentActivity] = None, reads: int = 4, context: str = "") -> FindingDraft:
+        """`context` adds run-specific instructions: the known claims of an incremental run, or the
+        user's direction for a follow-up sub-question."""
         system = prompts.RESEARCHER.format(shape=shape, shape_hint=prompts.SHAPE_HINTS.get(shape, ""), reads=reads)
+        if context:
+            system += "\n\n" + context
         agent = _agent(WORKER_MODEL_ID, RESEARCH_MAX_TOKENS, system, activity, tools=tools,
                        structured_output_model=FindingDraft)
         prompt = f"Question: {question}" + (f"\n\n{feedback}" if feedback else "")
@@ -184,17 +188,27 @@ class StrandsLlm:
         return _structured(agent, json.dumps(brief, ensure_ascii=False), activity)
 
     def review(self, topic: str, findings: list[dict], requirements: list[dict], max_follow_ups: int = 3,
-               activity: Optional[AgentActivity] = None) -> ReviewDraft:
-        agent = _agent(SUPERVISOR_MODEL_ID, PLAN_MAX_TOKENS, prompts.REVIEWER.format(max_follow_ups=max_follow_ups), activity,
-                       structured_output_model=ReviewDraft)
+               activity: Optional[AgentActivity] = None, steering: Optional[list[str]] = None) -> ReviewDraft:
+        system = prompts.REVIEWER.format(max_follow_ups=max_follow_ups)
+        if steering:
+            system += "\n\n" + prompts.REVIEWER_STEERING.format(
+                steering="\n".join(f"- {t}" for t in steering), max_follow_ups=max_follow_ups)
+        agent = _agent(SUPERVISOR_MODEL_ID, PLAN_MAX_TOKENS, system, activity, structured_output_model=ReviewDraft)
         reqs = json.dumps(requirements, ensure_ascii=False)
         return _structured(agent, f"Research topic: {topic}\n\nRequirements:\n{reqs}\n\nFindings:\n{_findings_brief(findings)}",
                            activity)
 
     def report(self, topic: str, requirements: list[dict], catalog: str, review: Optional[ReviewDraft], words: int = 800,
-               activity: Optional[AgentActivity] = None, on_text: Optional[Callable[[str], None]] = None) -> str:
-        """Writes the final Markdown report; each text token goes to `on_text` as it is generated."""
+               activity: Optional[AgentActivity] = None, on_text: Optional[Callable[[str], None]] = None,
+               steering: Optional[list[str]] = None, update: Optional[dict] = None) -> str:
+        """Writes the final Markdown report; each text token goes to `on_text` as it is generated.
+        `steering` are the user's directions during the run; `update` ({version, since}) marks an
+        incremental run, whose report says what changed."""
         system = prompts.REPORTER.format(words=words)
+        if steering:
+            system += "\n\n" + prompts.REPORTER_STEERING.format(steering="\n".join(f"- {t}" for t in steering))
+        if update:
+            system += "\n\n" + prompts.REPORTER_UPDATE.format(version=update.get("version"), since=update.get("since"))
         if catalog.startswith("NO_VERIFIED_CLAIMS"):
             system += ("\n\nNo verified claims are available this time. Use the findings instead and cite them as [F1], [F2]; "
                        "say in the uncertainty section that the evidence could not be checked against the pages.")
@@ -217,3 +231,12 @@ class StrandsLlm:
     def revise(self, items: list[dict], activity: Optional[AgentActivity] = None) -> ReviseDraft:
         agent = _agent(WORKER_MODEL_ID, VERIFY_MAX_TOKENS, prompts.REVISER, activity, structured_output_model=ReviseDraft)
         return _structured(agent, json.dumps(items, ensure_ascii=False)[:80_000], activity)
+
+    def answer(self, question: str, selection: str, report: str, catalog: str,
+               activity: Optional[AgentActivity] = None) -> AnswerDraft:
+        agent = _agent(WORKER_MODEL_ID, VERIFY_MAX_TOKENS, prompts.ANSWERER, activity, structured_output_model=AnswerDraft)
+        prompt = f"Question: {question}"
+        if selection:
+            prompt += f"\n\nSelected passage of the report:\n{selection[:2000]}"
+        prompt += f"\n\nReport (for context only; cite claims, not the report):\n{report[:12_000]}\n\nClaims:\n{catalog}"
+        return _structured(agent, prompt, activity)

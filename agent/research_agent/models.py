@@ -62,6 +62,8 @@ class EvidenceDraft(BaseModel):
 class ClaimDraft(BaseModel):
     text: str = Field(description="One atomic, self-contained factual statement in the question's language, with its scope and date")
     evidence: list[EvidenceDraft] = Field(min_length=1, max_length=4)
+    updates: str = Field(default="", description="Only when you were given known claims: the claimId of the known claim this new "
+                                                 "claim replaces because newer evidence changes it; empty otherwise")
 
 
 class FindingDraft(BaseModel):
@@ -123,3 +125,9 @@ class SentenceEdit(BaseModel):
 
 class ReviseDraft(BaseModel):
     edits: list[SentenceEdit] = Field(default_factory=list)
+
+
+class AnswerDraft(BaseModel):
+    answer: str = Field(description="Markdown answer in the question's language, citing claims as [C1], [C2]; no facts beyond the claims")
+    needsResearch: bool = Field(default=False, description="True when the claims cannot answer the question and new research is needed")
+    researchQuestion: str = Field(default="", max_length=300, description="When needsResearch: the sub-question a new run should research")
