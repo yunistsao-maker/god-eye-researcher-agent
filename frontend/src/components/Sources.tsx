@@ -4,14 +4,15 @@ import { safeHref } from '../lib/markdown';
 import { sourceTypeLabel } from '../state';
 import type { SourceDoc } from '../types';
 
-const PREVIEW = 8;
-
 interface Props {
   docs: readonly SourceDoc[];
+  /** How many to show before 「顯示全部」. */
+  preview?: number;
 }
 
 /** Every page the agents read, best sources first, with type, date and duplicate marks. */
-function SourceListImpl({ docs }: Props) {
+function SourceListImpl({ docs, preview = 8 }: Props) {
+  const PREVIEW = preview;
   const [all, setAll] = useState(false);
   if (!docs.length) return <p className="src-empty">Sub-agent 讀過的網頁會列在這裡。</p>;
   const sorted = docs
@@ -28,12 +29,12 @@ function SourceListImpl({ docs }: Props) {
 
   return (
     <div className="srcp">
-      <p className="src-sum">
+      <p className="muted small">
         {docs.length} 個來源 · {publishers} 個發布者{dups ? ` · ${dups} 篇轉載` : ''}
       </p>
       <div className="src-types">
         {typeList.map(([t, n]) => (
-          <span key={t} className={'chip st-' + t}>
+          <span key={t} className={'chip ' + (['government', 'standards', 'academic', 'official'].includes(t) ? '' : 'neutral')}>
             {sourceTypeLabel(t)} {n}
           </span>
         ))}

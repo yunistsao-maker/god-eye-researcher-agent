@@ -3,7 +3,7 @@ import { parseEvent } from './lib/events';
 import { parseRpcBody, unwrapToolResult } from './lib/mcp';
 import { MOCK_SUBS, buildFinding, generatedSpec } from './lib/mockData';
 import { resolvePath, validateSpec } from './lib/spec';
-import { claimIndex, claimsOf, evidenceStats, hydrate, initialState, reduce, showsSubUi, tierOf, update, type ResearchState } from './state';
+import { claimIndex, claimsOf, currentClaims, evidenceStats, hydrate, initialState, reduce, showsSubUi, tierOf, update, type ResearchState } from './state';
 import type { Edge, Entity, Finding, ProjectGetResult, ResearchEvent, UiSpec, UiSpecRecord } from './types';
 
 const PID = 'p-20261022-1a2b3c4d';
@@ -286,7 +286,8 @@ describe('evidence events', () => {
     expect(evidenceStats(s)).toMatchObject({ claims: 3, corroborated: 1, asserted: 2, contested: 0 });
     const [a, b, c] = finding(1).claims!;
     const odd = finding(1, { claims: [{ ...a, status: 'superseded' as never }, { ...b, status: 'weird' as never }, c, { text: 'no id' } as never] });
-    expect(claimsOf(odd).map((x) => [x.claimId, x.status])).toEqual([[b.claimId, 'asserted'], [c.claimId, c.status]]);
+    expect(claimsOf(odd).map((x) => [x.claimId, x.status])).toEqual([[a.claimId, 'superseded'], [b.claimId, 'asserted'], [c.claimId, c.status]]);
+    expect(currentClaims(odd).map((x) => x.claimId)).toEqual([b.claimId, c.claimId]);
   });
 
   it('a refresh keeps documents the server has not stored yet; another project starts clean', () => {

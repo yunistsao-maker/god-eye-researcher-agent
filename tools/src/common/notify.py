@@ -81,6 +81,7 @@ def project_ended(meta: dict, status: str, detail: str = "") -> bool:
             Destination={"ToAddresses": [to]},
             Content={"Simple": {"Subject": {"Data": subject, "Charset": "UTF-8"}, "Body": {"Text": {"Data": body, "Charset": "UTF-8"}}}},
         )
+        log.info("end-of-run email sent for %s (%s)", meta.get("projectId"), status)
         return True
     except Exception:  # noqa: BLE001 - never fail the run because an email could not go out
         log.exception("could not send the end-of-run email for %s", meta.get("projectId"))

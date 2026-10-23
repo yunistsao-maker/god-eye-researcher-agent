@@ -3,10 +3,11 @@
   {
    "type": "project.created",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T08:33:36.247Z",
+   "ts": "2026-10-23T17:41:29.089Z",
    "data": {
     "topic": "半導體導入生成式 AI",
-    "parentProjectId": null
+    "parentProjectId": null,
+    "status": "running"
    }
   },
   {
@@ -22,7 +23,7 @@
   {
    "type": "plan.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T08:33:36.254Z",
+   "ts": "2026-10-23T17:41:29.098Z",
    "data": {
     "subQuestions": [
      {
@@ -82,7 +83,7 @@
   {
    "type": "finding.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T08:33:36.280Z",
+   "ts": "2026-10-23T17:41:29.127Z",
    "data": {
     "finding": {
      "findingId": "f-1",
@@ -142,7 +143,7 @@
   {
    "type": "relation.added",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T08:33:36.280Z",
+   "ts": "2026-10-23T17:41:29.127Z",
    "data": {
     "entities": [
      {
@@ -188,7 +189,7 @@
   {
    "type": "ui.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T08:33:36.305Z",
+   "ts": "2026-10-23T17:41:29.148Z",
    "data": {
     "findingId": "f-1",
     "spec": {
@@ -230,7 +231,7 @@
   {
    "type": "finding.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T08:33:36.325Z",
+   "ts": "2026-10-23T17:41:29.173Z",
    "data": {
     "finding": {
      "findingId": "f-2",
@@ -282,7 +283,7 @@
   {
    "type": "relation.added",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T08:33:36.325Z",
+   "ts": "2026-10-23T17:41:29.173Z",
    "data": {
     "entities": [
      {
@@ -340,7 +341,7 @@
   {
    "type": "ui.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T08:33:36.344Z",
+   "ts": "2026-10-23T17:41:29.196Z",
    "data": {
     "findingId": "f-2",
     "spec": {
@@ -370,12 +371,14 @@
   {
    "type": "project.stopped",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T08:33:36.389Z",
+   "ts": "2026-10-23T17:41:29.258Z",
    "data": {
     "stats": {
      "findings": 2,
      "edges": 7,
      "uiReady": 2,
+     "sources": 0,
+     "claims": 0,
      "elapsedSec": 0
     }
    }
@@ -452,9 +455,23 @@
    "topic": "半導體導入生成式 AI",
    "status": "stopped",
    "parentProjectId": null,
-   "createdAt": "2026-10-23T08:33:36Z",
-   "updatedAt": "2026-10-23T08:33:36Z",
-   "findingCount": 2
+   "createdAt": "2026-10-23T17:41:29Z",
+   "updatedAt": "2026-10-23T17:41:29Z",
+   "findingCount": 2,
+   "version": 1,
+   "notify": false,
+   "stoppedAt": "2026-10-23T17:41:29Z",
+   "brief": {
+    "depth": "standard"
+   },
+   "stats": {
+    "findings": 2,
+    "edges": 7,
+    "uiReady": 2,
+    "sources": 0,
+    "claims": 0,
+    "elapsedSec": 0
+   }
   },
   "plan": [
    {
@@ -488,6 +505,8 @@
     "round": 1
    }
   ],
+  "proposedPlan": null,
+  "requirements": [],
   "findings": [
    {
     "findingId": "f-1",
@@ -671,6 +690,11 @@
     "via": "e-rag"
    }
   ],
-  "synthesis": null
+  "docs": [],
+  "coverage": null,
+  "synthesis": null,
+  "history": [],
+  "steering": [],
+  "qa": []
  }
 }

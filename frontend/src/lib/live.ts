@@ -8,7 +8,7 @@ import type { AppConfig, ResearchEvent } from '../types';
 import { parseEvent } from './events';
 import { newSessionId } from './ids';
 import { McpClient } from './mcp';
-import { wireToolName, type LogFn, type StartResearchArgs, type Transport } from './transport';
+import { wireToolName, type LogFn, type RuntimeAction, type RuntimeReply, type StartResearchArgs, type Transport } from './transport';
 
 let configured = false;
 
@@ -85,27 +85,33 @@ export class LiveTransport implements Transport {
   }
 
   async startResearch(args: StartResearchArgs): Promise<void> {
+    await this.invoke('start', { projectId: args.projectId, topic: args.topic, parentProjectId: args.parentProjectId });
+  }
+
+  async invoke(action: RuntimeAction, payload: Record<string, unknown>, sessionId?: string): Promise<RuntimeReply> {
     const token = await accessToken();
-    const sessionId = newSessionId(args.projectId);
-    this.log('gw', `POST **research**/invocations · session ${args.projectId}`);
+    const projectId = String(payload.projectId ?? '');
+    this.log('gw', `POST **research**/invocations · ${action} · ${projectId}`);
     const res = await fetch(`${trimSlash(this.cfg.agentsBaseUrl)}/research/invocations`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
-        'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': sessionId,
+        'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': sessionId || newSessionId(projectId),
       },
-      body: JSON.stringify({ action: 'start', projectId: args.projectId, topic: args.topic, parentProjectId: args.parentProjectId }),
+      body: JSON.stringify({ ...payload, action }),
     });
     const text = await res.text();
     if (!res.ok) throw new Error(`research HTTP ${res.status}${text ? '：' + text.slice(0, 200) : ''}`);
-    let status = '';
+    let reply: RuntimeReply & { error?: string } = {};
     try {
-      status = (JSON.parse(text) as { status?: string }).status ?? '';
+      reply = text ? (JSON.parse(text) as RuntimeReply & { error?: string }) : {};
     } catch {
       /* body is optional */
     }
-    this.log('note', 'research 已受理' + (status ? `（${status}）` : ''));
+    if (reply.error) throw new Error(reply.error);
+    this.log('note', `research ${action} 已受理` + (reply.status ? `（${reply.status}）` : ''));
+    return reply;
   }
 
   async callTool(name: string, args: Record<string, unknown>): Promise<any> {

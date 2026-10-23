@@ -30,7 +30,7 @@ describe('claim display', () => {
   it('describes the support behind a claim', () => {
     expect(claimMeta({ status: 'corroborated', independentSources: 3, supporting: 3, contradicting: 0 })).toBe('3 個獨立來源');
     expect(claimMeta({ status: 'asserted', independentSources: 1, supporting: 2, contradicting: 0 })).toBe('1 個獨立來源');
-    expect(claimMeta({ status: 'contested', independentSources: 1, supporting: 1, contradicting: 1 })).toBe('1 支持 · 1 反駁');
+    expect(claimMeta({ status: 'contested', independentSources: 1, supporting: 1, contradicting: 1 })).toBe('1 支持 · 1 反對');
   });
 
   it('lists corroborated, then contested, then single-source claims, stable within a status', () => {

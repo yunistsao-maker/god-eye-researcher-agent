@@ -3,10 +3,11 @@
   {
    "type": "project.created",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.677Z",
+   "ts": "2026-10-23T17:41:24.371Z",
    "data": {
     "topic": "半導體導入生成式 AI",
-    "parentProjectId": null
+    "parentProjectId": null,
+    "status": "running"
    }
   },
   {
@@ -22,7 +23,7 @@
   {
    "type": "plan.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.686Z",
+   "ts": "2026-10-23T17:41:24.389Z",
    "data": {
     "subQuestions": [
      {
@@ -82,7 +83,7 @@
   {
    "type": "finding.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.716Z",
+   "ts": "2026-10-23T17:41:24.742Z",
    "data": {
     "finding": {
      "findingId": "f-1",
@@ -142,7 +143,7 @@
   {
    "type": "relation.added",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.716Z",
+   "ts": "2026-10-23T17:41:24.742Z",
    "data": {
     "entities": [
      {
@@ -188,7 +189,7 @@
   {
    "type": "ui.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.743Z",
+   "ts": "2026-10-23T17:41:24.765Z",
    "data": {
     "findingId": "f-1",
     "spec": {
@@ -251,7 +252,7 @@
   {
    "type": "finding.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.769Z",
+   "ts": "2026-10-23T17:41:24.798Z",
    "data": {
     "finding": {
      "findingId": "f-2",
@@ -303,7 +304,7 @@
   {
    "type": "relation.added",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.769Z",
+   "ts": "2026-10-23T17:41:24.798Z",
    "data": {
     "entities": [
      {
@@ -361,7 +362,7 @@
   {
    "type": "ui.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.790Z",
+   "ts": "2026-10-23T17:41:24.820Z",
    "data": {
     "findingId": "f-2",
     "spec": {
@@ -401,7 +402,7 @@
   {
    "type": "finding.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.812Z",
+   "ts": "2026-10-23T17:41:24.847Z",
    "data": {
     "finding": {
      "findingId": "f-3",
@@ -461,7 +462,7 @@
   {
    "type": "relation.added",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.812Z",
+   "ts": "2026-10-23T17:41:24.847Z",
    "data": {
     "entities": [
      {
@@ -531,7 +532,7 @@
   {
    "type": "ui.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.833Z",
+   "ts": "2026-10-23T17:41:24.868Z",
    "data": {
     "findingId": "f-3",
     "spec": {
@@ -573,7 +574,7 @@
   {
    "type": "finding.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.858Z",
+   "ts": "2026-10-23T17:41:24.895Z",
    "data": {
     "finding": {
      "findingId": "f-4",
@@ -626,7 +627,7 @@
   {
    "type": "relation.added",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.858Z",
+   "ts": "2026-10-23T17:41:24.895Z",
    "data": {
     "entities": [
      {
@@ -708,7 +709,7 @@
   {
    "type": "ui.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.879Z",
+   "ts": "2026-10-23T17:41:24.916Z",
    "data": {
     "findingId": "f-4",
     "spec": {
@@ -748,7 +749,7 @@
   {
    "type": "finding.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.902Z",
+   "ts": "2026-10-23T17:41:24.945Z",
    "data": {
     "finding": {
      "findingId": "f-5",
@@ -793,7 +794,7 @@
   {
    "type": "relation.added",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.902Z",
+   "ts": "2026-10-23T17:41:24.945Z",
    "data": {
     "entities": [
      {
@@ -891,7 +892,8 @@
    "data": {
     "agentId": "supervisor",
     "phase": "reviewing",
-    "round": 1
+    "round": 1,
+    "detail": "第 1 輪"
    }
   },
   {
@@ -943,7 +945,7 @@
   {
    "type": "synthesis.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.911Z",
+   "ts": "2026-10-23T17:41:24.962Z",
    "data": {
     "synthesis": {
      "report": "## 摘要\n\n最早導入的是知識檢索 [F1]，時程從 2024 年開始 [F2]。\n\n## 主要發現\n\n- 部署以混合為主 [F3]\n\n## 矛盾與不確定性\n\n- 成效數字為自評 [F4]\n\n## 尚待研究\n\n- 成本",
@@ -954,7 +956,8 @@
       "缺少導入成本資料"
      ],
      "followUps": [],
-     "createdAt": "2026-10-23T07:52:03Z"
+     "createdAt": "2026-10-23T17:41:24Z",
+     "version": 1
     }
    }
   },
@@ -971,13 +974,15 @@
   {
    "type": "project.completed",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T07:52:03.987Z",
+   "ts": "2026-10-23T17:41:25.081Z",
    "data": {
     "stats": {
      "findings": 5,
      "edges": 31,
      "uiReady": 4,
-     "elapsedSec": 0
+     "sources": 0,
+     "claims": 0,
+     "elapsedSec": 1
     }
    }
   }
@@ -989,9 +994,23 @@
    "topic": "半導體導入生成式 AI",
    "status": "completed",
    "parentProjectId": null,
-   "createdAt": "2026-10-23T07:52:03Z",
-   "updatedAt": "2026-10-23T07:52:03Z",
-   "findingCount": 5
+   "createdAt": "2026-10-23T17:41:24Z",
+   "updatedAt": "2026-10-23T17:41:24Z",
+   "findingCount": 5,
+   "version": 1,
+   "notify": false,
+   "completedAt": "2026-10-23T17:41:24Z",
+   "brief": {
+    "depth": "standard"
+   },
+   "stats": {
+    "findings": 5,
+    "edges": 31,
+    "uiReady": 4,
+    "sources": 0,
+    "claims": 0,
+    "elapsedSec": 1
+   }
   },
   "plan": [
    {
@@ -1025,6 +1044,8 @@
     "round": 1
    }
   ],
+  "proposedPlan": null,
+  "requirements": [],
   "findings": [
    {
     "findingId": "f-1",
@@ -1513,6 +1534,8 @@
     "via": "e-rag"
    }
   ],
+  "docs": [],
+  "coverage": null,
   "synthesis": {
    "report": "## 摘要\n\n最早導入的是知識檢索 [F1]，時程從 2024 年開始 [F2]。\n\n## 主要發現\n\n- 部署以混合為主 [F3]\n\n## 矛盾與不確定性\n\n- 成效數字為自評 [F4]\n\n## 尚待研究\n\n- 成本",
    "contradictions": [
@@ -1522,7 +1545,11 @@
     "缺少導入成本資料"
    ],
    "followUps": [],
-   "createdAt": "2026-10-23T07:52:03Z"
-  }
+   "createdAt": "2026-10-23T17:41:24Z",
+   "version": 1
+  },
+  "history": [],
+  "steering": [],
+  "qa": []
  }
 }

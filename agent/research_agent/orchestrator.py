@@ -296,6 +296,8 @@ class Orchestrator:
                 self._steers[sid] = st
                 if st.get("appliedRound") is not None:
                     self._given.add(sid)   # applied by an earlier run of this project
+            if st.get("kind") == "redirect" and st.get("appliedRound") is None:
+                log.info("steer %s received: redirect", sid)
             if st.get("kind") == "finish" and st.get("appliedRound") is None:
                 log.info("the user asked to wrap up")
                 self._finish.set()

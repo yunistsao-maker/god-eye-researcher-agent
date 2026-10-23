@@ -2,26 +2,21 @@ import '@aws-amplify/ui-react/styles.css';
 import './styles.css';
 import { Authenticator } from '@aws-amplify/ui-react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
+import { ProjectHeader } from './components/ProjectHeader';
 import { loadConfig, missingLiveFields } from './config';
-import { newProjectId } from './lib/ids';
+import { newProjectId, randomHex } from './lib/ids';
 import { configureAmplify, LiveTransport } from './lib/live';
 import { MockTransport } from './lib/mock';
 import type { Transport } from './lib/transport';
-import { claimIndex, evidenceStats, findingLabel, hydrate, initialState, statsOf, update, type LogKind } from './state';
-import type { AppConfig, Project, ProjectGetResult, ProjectListResult, ProjectRestartResult, ResearchEvent } from './types';
-import { DEFAULT_TOPIC } from './types';
-import { LivenessIndicator, SupervisorLine } from './components/Activity';
-import { CoverageList } from './components/Coverage';
-import { EventLog } from './components/EventLog';
-import { FindingCard } from './components/FindingCard';
-import { Graph, GraphLegend } from './components/Graph';
-import { PlanList } from './components/PlanList';
-import { Projects } from './components/Projects';
-import { SourceList } from './components/Sources';
-import { SynthesisView } from './components/Synthesis';
-import { TemplateList } from './components/TemplateList';
-import { TopBar } from './components/TopBar';
-import { prefersReducedMotion } from './components/usePrefersReducedMotion';
+import { navigate, projectPath, useRoute, type ProjectView, type Route } from './router';
+import { Compose } from './screens/Compose';
+import { EvidenceDesk } from './screens/EvidenceDesk';
+import { Library } from './screens/Library';
+import { Report } from './screens/Report';
+import { Run } from './screens/Run';
+import { initialState, update, type LogKind, type ResearchState } from './state';
+import type { AppConfig, Brief, Project, ProjectGetResult, ProjectListResult, ResearchEvent, Steer } from './types';
+import type { Actions, PlanDraft } from './workspace';
 
 const CLEANUP_STEP_MS = 420;
 const LIVE_POLL_MS = 3000;
@@ -36,27 +31,45 @@ function sortNewest(list: Project[]): Project[] {
   return [...list].sort((a, b) => key(b).localeCompare(key(a)) || b.projectId.localeCompare(a.projectId));
 }
 
-function Elapsed({ running, startedAt, scale, final }: { running: boolean; startedAt: number | null; scale: number; final: number | undefined }) {
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    if (!running) return;
-    const h = setInterval(() => setTick((t) => t + 1), 100);
-    return () => clearInterval(h);
-  }, [running]);
-  const v = running && startedAt != null ? ((Date.now() - startedAt) * scale) / 1000 : final;
-  return <b>{v == null ? '—' : v.toFixed(1) + 's'}</b>;
+/** The view a project opens in when the link does not say. */
+function defaultView(state: ResearchState): ProjectView {
+  const p = state.project;
+  if (!p) return 'run';
+  if (p.status === 'draft') return 'plan';
+  if (p.status === 'completed' && state.synthesis.status === 'ready') return 'report';
+  return 'run';
 }
 
-interface ConsoleProps {
+function briefArgs(brief: Brief): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(brief)) if (v !== undefined && v !== '' && !(Array.isArray(v) && !v.length)) out[k] = v;
+  return out;
+}
+
+const Logo = () => (
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+    <circle cx="11" cy="11" r="9.5" stroke="currentColor" strokeWidth="1.6" />
+    <circle cx="11" cy="11" r="4" stroke="currentColor" strokeWidth="1.6" />
+    <circle cx="11" cy="11" r="1.4" fill="currentColor" />
+  </svg>
+);
+
+interface WorkspaceProps {
   config: AppConfig;
   user?: string;
   onSignOut?: () => void;
 }
 
-function Console({ config, user, onSignOut }: ConsoleProps) {
+function Workspace({ config, user, onSignOut }: WorkspaceProps) {
   const [state, dispatch] = useReducer(update, undefined, initialState);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const route = useRoute();
+  // A new screen starts at the top; changing a view's parameters (selected claim, tab) does not scroll.
+  const screenKey = route.name === 'project' ? `p/${route.id}/${route.view ?? ''}` : route.name;
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [screenKey]);
 
   const [speed, setSpeedState] = useState(1);
   const speedRef = useRef(1);
@@ -64,10 +77,12 @@ function Console({ config, user, onSignOut }: ConsoleProps) {
     speedRef.current = v;
     setSpeedState(v);
   };
-  const [topic, setTopic] = useState(DEFAULT_TOPIC);
-  const [starting, setStarting] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [loadingProjects, setLoadingProjects] = useState(true);
+  const [opening, setOpening] = useState<string | null>(null);
+  const [openError, setOpenError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [menu, setMenu] = useState(false);
   const [toast, setToast] = useState<ReactNode | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -76,7 +91,6 @@ function Console({ config, user, onSignOut }: ConsoleProps) {
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 4200);
   }, []);
-
   const log = useCallback((kind: LogKind, text: string) => dispatch({ kind: 'log', logKind: kind, text, at: Date.now() }), []);
 
   const transport: Transport = useMemo(
@@ -87,15 +101,7 @@ function Console({ config, user, onSignOut }: ConsoleProps) {
 
   /* ---------- events & subscriptions ---------- */
 
-  const onEvent = useCallback((ev: ResearchEvent) => {
-    let busy: string[] | undefined;
-    if (ev.type === 'ui.ready') {
-      const el = document.getElementById('card-' + ev.data.findingId);
-      if (el && (el.matches(':hover') || el.contains(document.activeElement))) busy = [ev.data.findingId];
-    }
-    dispatch({ kind: 'event', event: ev, at: Date.now(), busy });
-  }, []);
-
+  const onEvent = useCallback((ev: ResearchEvent) => dispatch({ kind: 'event', event: ev, at: Date.now() }), []);
   const subs = useRef(new Map<string, { users: Set<string>; ready: Promise<() => void> }>());
 
   const acquire = useCallback(
@@ -135,117 +141,227 @@ function Console({ config, user, onSignOut }: ConsoleProps) {
     [acquire, release],
   );
 
-  // Drop the main subscription when the open project goes away (e.g. it was cleaned up).
   const openId = state.project?.projectId ?? null;
   useEffect(() => {
     if (!openId && mainSub.current) void setMainSub(null);
   }, [openId, setMainSub]);
 
-  /* ---------- initial load: project_list, then restore the newest ---------- */
+  /* ---------- projects ---------- */
 
-  const loaded = useRef(false);
+  const refreshProjects = useCallback(async () => {
+    try {
+      const res = (await transport.callTool('project_list', {})) as ProjectListResult;
+      dispatch({ kind: 'projects.set', projects: sortNewest(Array.isArray(res?.projects) ? res.projects : []) });
+    } catch (err) {
+      log('note', '讀取專案失敗：' + errText(err));
+      showToast(<>讀取專案失敗：{errText(err)}</>);
+    } finally {
+      setLoadingProjects(false);
+    }
+  }, [transport, log, showToast]);
+
   useEffect(() => {
-    if (loaded.current) return;
-    loaded.current = true;
-    (async () => {
+    void refreshProjects();
+  }, [refreshProjects]);
+
+  /** Restore a project from project_get and listen to its channel. */
+  const openProject = useCallback(
+    async (projectId: string): Promise<boolean> => {
+      if (stateRef.current.project?.projectId === projectId) return true;
+      setOpening(projectId);
+      setOpenError(null);
       try {
-        const res = (await transport.callTool('project_list', {})) as ProjectListResult;
-        const projects = sortNewest(Array.isArray(res?.projects) ? res.projects : []);
-        dispatch({ kind: 'projects.set', projects });
-        const newest = projects.find((p) => p.status !== 'archived' && p.status !== 'archiving');
-        if (!newest) return;
-        const got = (await transport.callTool('project_get', { projectId: newest.projectId })) as ProjectGetResult;
-        if (stateRef.current.project) return; // a new run started meanwhile
+        const got = (await transport.callTool('project_get', { projectId })) as ProjectGetResult;
         dispatch({ kind: 'hydrate', result: got, at: Date.now() });
-        const h = hydrate(got);
-        const ui = Object.values(h.slots).filter((s) => s.ui.status === 'ready').length;
-        log('note', `從 S3 還原 ${newest.projectId}：findings/×${h.order.filter((id) => h.slots[id].finding).length}、ui/×${ui}（存在專案內，不依賴模板快取）`);
-        await setMainSub(newest.projectId).catch((err) => log('note', '訂閱失敗：' + errText(err)));
+        await setMainSub(projectId).catch((err) => log('note', '訂閱失敗：' + errText(err)));
+        return true;
       } catch (err) {
-        log('note', '讀取專案失敗：' + errText(err));
-        showToast(<>讀取專案失敗：{errText(err)}</>);
+        setOpenError(errText(err));
+        return false;
       } finally {
-        setLoadingProjects(false);
-      }
-    })();
-  }, [transport, log, showToast, setMainSub]);
-
-  /* ---------- start / restart / save ---------- */
-
-  // Only a run started in this tab locks the controls; a restored "running" project (maybe orphaned) does not.
-  const running = starting || (state.project?.status === 'running' && state.clock.running);
-
-  const start = useCallback(
-    async (parentProjectId: string | null) => {
-      if (starting || stateRef.current.project?.status === 'running') return;
-      setStarting(true);
-      const mark = stateRef.current.logSeq;
-      let projectId = '';
-      try {
-        let runTopic = topic.trim() || DEFAULT_TOPIC;
-        let parent: string | null = null;
-        if (parentProjectId) {
-          const r = (await transport.callTool('project_restart', { parentProjectId })) as ProjectRestartResult;
-          projectId = r.projectId;
-          runTopic = r.topic || stateRef.current.project?.topic || runTopic;
-          parent = r.parentProjectId ?? parentProjectId;
-        } else {
-          projectId = newProjectId();
-        }
-        dispatch({ kind: 'run.start', projectId, topic: runTopic, parentProjectId: parent, at: Date.now(), scale: config.mode === 'mock' ? speedRef.current : 1, keepLogAfter: mark });
-        await setMainSub(projectId); // subscribe FIRST so project.created is not missed
-        await transport.startResearch({ projectId, topic: runTopic, parentProjectId: parent });
-      } catch (err) {
-        if (projectId) dispatch({ kind: 'run.error', projectId, message: errText(err), at: Date.now() });
-        else log('note', '無法開始研究：' + errText(err));
-        showToast(<>無法開始研究：{errText(err)}</>);
-      } finally {
-        setStarting(false);
+        setOpening(null);
       }
     },
-    [starting, topic, transport, config.mode, setMainSub, log, showToast],
+    [transport, setMainSub, log],
   );
 
-  const save = useCallback(async () => {
-    const p = stateRef.current.project;
-    if (!p || p.status !== 'completed') return;
-    setSaving(true);
-    try {
-      await transport.callTool('project_save', { projectId: p.projectId, status: 'completed' });
-      showToast(
-        <>
-          已儲存到 <code>s3://research-bucket/projects/{p.projectId}/</code>
-        </>,
-      );
-    } catch (err) {
-      log('note', '儲存失敗：' + errText(err));
-      showToast(<>儲存失敗：{errText(err)}</>);
-    } finally {
-      setSaving(false);
+  // Routes decide what is open.
+  useEffect(() => {
+    if (route.name === 'home') {
+      if (loadingProjects) return;
+      navigate(stateRef.current.projects.some((p) => p.status !== 'archived') ? '#/library' : '#/new', true);
+    } else if (route.name === 'project' && state.project?.projectId !== route.id && opening !== route.id && !openError) {
+      void openProject(route.id);
+    } else if (route.name === 'library') {
+      void refreshProjects();
     }
-  }, [transport, log, showToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route, loadingProjects]);
+  useEffect(() => setOpenError(null), [route]);
 
-  /* ---------- liveness: re-read the open project when heartbeats stopped ---------- */
+  // A project link without a view goes to the one that fits its status.
+  useEffect(() => {
+    if (route.name === 'project' && !route.view && state.project?.projectId === route.id) navigate(projectPath(route.id, defaultView(state)), true);
+  }, [route, state]);
 
-  const [refreshing, setRefreshing] = useState(false);
-  const refreshStatus = useCallback(async () => {
-    const p = stateRef.current.project;
-    if (!p) return;
-    setRefreshing(true);
-    try {
-      const got = (await transport.callTool('project_get', { projectId: p.projectId })) as ProjectGetResult;
-      if (stateRef.current.project?.projectId !== p.projectId) return; // another project was opened meanwhile
-      dispatch({ kind: 'hydrate', result: got, at: Date.now() });
-      log('note', `重新讀取 ${p.projectId}：狀態 ${got?.project?.status ?? '未知'}${got?.project?.updatedAt ? '，updatedAt ' + got.project.updatedAt : ''}`);
-    } catch (err) {
-      log('note', '重新整理狀態失敗：' + errText(err));
-      showToast(<>重新整理狀態失敗：{errText(err)}</>);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [transport, log, showToast]);
+  /* ---------- actions ---------- */
 
-  /* ---------- cleanup ---------- */
+  const run = useCallback(
+    async (what: string, fn: () => Promise<void>) => {
+      setBusy(true);
+      try {
+        await fn();
+      } catch (err) {
+        log('note', `${what}失敗：` + errText(err));
+        showToast(
+          <>
+            {what}失敗：{errText(err)}
+          </>,
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [log, showToast],
+  );
+
+  const scale = () => (config.mode === 'mock' ? speedRef.current : 1);
+
+  const actions: Actions = {
+    proposePlan: (topic, brief, parentProjectId = null) =>
+      run('產生計畫', async () => {
+        const open = stateRef.current.project;
+        const reuse = open?.status === 'draft' && route.name === 'project' && route.id === open.projectId;
+        const projectId = reuse ? open.projectId : newProjectId();
+        if (reuse) dispatch({ kind: 'planning.redo', at: Date.now() });
+        else dispatch({ kind: 'planning.start', projectId, topic, parentProjectId, at: Date.now(), brief });
+        await setMainSub(projectId);
+        if (!reuse) navigate(projectPath(projectId, 'plan'));
+        await transport.invoke('plan', { projectId, topic, parentProjectId, ...briefArgs(brief) });
+      }),
+    saveProposal: (plan: PlanDraft) =>
+      run('儲存計畫', async () => {
+        const p = stateRef.current.project;
+        if (!p || p.status !== 'draft') return;
+        const subQuestions = plan.subQuestions.map((q, i) => ({ findingId: `f-${i + 1}`, question: q.question, dataShape: q.dataShape }));
+        await transport.callTool('data-tools___plan_propose', { projectId: p.projectId, subQuestions, requirements: plan.requirements, brief: plan.brief, by: 'user' });
+        dispatch({ kind: 'project.patch', projectId: p.projectId, patch: { brief: plan.brief, topic: plan.topic } });
+        showToast(<>計畫已儲存，可以從專案庫繼續。</>);
+      }),
+    startPlan: (plan: PlanDraft) =>
+      run('開始研究', async () => {
+        const open = stateRef.current.project;
+        const draft = open?.status === 'draft' ? open : null;
+        const projectId = draft?.projectId ?? newProjectId();
+        if (draft) dispatch({ kind: 'run.begin', projectId, at: Date.now(), scale: scale() });
+        else dispatch({ kind: 'run.start', projectId, topic: plan.topic, parentProjectId: null, at: Date.now(), scale: scale() });
+        await setMainSub(projectId);
+        navigate(projectPath(projectId, 'run'));
+        await transport.invoke('start', {
+          projectId,
+          topic: plan.topic,
+          parentProjectId: draft?.parentProjectId ?? null,
+          plan: { subQuestions: plan.subQuestions, requirements: plan.requirements.map((r) => r.text) },
+          ...briefArgs(plan.brief),
+        });
+      }),
+    startDirect: (topic, brief, parentProjectId = null) =>
+      run('開始研究', async () => {
+        const open = stateRef.current.project;
+        const draft = open?.status === 'draft' && route.name === 'project' ? open : null;
+        const projectId = draft?.projectId ?? newProjectId();
+        if (draft) dispatch({ kind: 'run.begin', projectId, at: Date.now(), scale: scale() });
+        else dispatch({ kind: 'run.start', projectId, topic, parentProjectId, at: Date.now(), scale: scale() });
+        await setMainSub(projectId);
+        navigate(projectPath(projectId, 'run'));
+        await transport.invoke('start', { projectId, topic, parentProjectId: draft?.parentProjectId ?? parentProjectId, ...briefArgs(brief) });
+      }),
+    stop: () =>
+      run('停止研究', async () => {
+        const p = stateRef.current.project;
+        if (!p) return;
+        const res = (await transport.callTool('project_stop', { projectId: p.projectId })) as { runtimeSessionId?: string | null };
+        try {
+          await transport.invoke('stop', { projectId: p.projectId }, res?.runtimeSessionId ?? undefined);
+        } catch (err) {
+          log('note', '通知 runtime 停止失敗，它會在 15 秒內自行停下：' + errText(err));
+        }
+        showToast(<>研究已停止，已完成的部分都保留。</>);
+      }),
+    finishEarly: () =>
+      run('收尾', async () => {
+        const p = stateRef.current.project;
+        if (!p) return;
+        const res = (await transport.callTool('project_steer', { projectId: p.projectId, kind: 'finish' })) as { steer?: Steer };
+        if (res?.steer) dispatch({ kind: 'steer.local', steer: res.steer, at: Date.now() });
+        showToast(<>會略過還沒開始的子題，用目前的結果寫報告。</>);
+      }),
+    redirect: async (text) => {
+      const p = stateRef.current.project;
+      if (!p) return false;
+      let ok = false;
+      await run('改方向', async () => {
+        const res = (await transport.callTool('project_steer', { projectId: p.projectId, kind: 'redirect', text })) as { steer?: Steer };
+        if (res?.steer) dispatch({ kind: 'steer.local', steer: res.steer, at: Date.now() });
+        ok = true;
+      });
+      return ok;
+    },
+    setNotify: (enabled) =>
+      run('設定通知', async () => {
+        const p = stateRef.current.project;
+        if (!p) return;
+        const res = (await transport.callTool('project_notify', { projectId: p.projectId, enabled })) as { notify?: boolean; available?: boolean };
+        dispatch({ kind: 'project.patch', projectId: p.projectId, patch: { notify: !!res?.notify } });
+        if (enabled && res?.available === false) showToast(<>這個部署沒有設定寄件者，無法寄送 email 通知。</>);
+      }),
+    ask: (question, selection) =>
+      run('追問', async () => {
+        const p = stateRef.current.project;
+        if (!p) return;
+        const qaId = 'qa-' + randomHex(10);
+        dispatch({ kind: 'qa.ask', qaId, question, selection, at: Date.now() });
+        try {
+          await transport.invoke('ask', { projectId: p.projectId, qaId, question, ...(selection ? { selection } : {}) });
+        } catch (err) {
+          dispatch({ kind: 'qa.error', qaId, message: errText(err) });
+          throw err;
+        }
+      }),
+    rerun: (extraQuestions = [], projectId) =>
+      run('增量重跑', async () => {
+        const id = projectId ?? stateRef.current.project?.projectId;
+        if (!id) return;
+        if (!(await openProject(id))) throw new Error('無法開啟專案');
+        const p = stateRef.current.project!;
+        if (p.status !== 'completed') throw new Error('只有已完成的專案可以增量重跑');
+        dispatch({ kind: 'run.begin', projectId: id, at: Date.now(), scale: scale() });
+        navigate(projectPath(id, 'run'));
+        await transport.invoke('start', { projectId: id, topic: p.topic, mode: 'incremental', ...(extraQuestions.length ? { extraQuestions } : {}) });
+      }),
+    refreshStatus: async () => {
+      const p = stateRef.current.project;
+      if (!p) return;
+      setRefreshing(true);
+      try {
+        const got = (await transport.callTool('project_get', { projectId: p.projectId })) as ProjectGetResult;
+        if (stateRef.current.project?.projectId !== p.projectId) return;
+        dispatch({ kind: 'hydrate', result: got, at: Date.now() });
+      } catch (err) {
+        showToast(<>重新整理失敗：{errText(err)}</>);
+      } finally {
+        setRefreshing(false);
+      }
+    },
+    refreshProjects,
+    askCleanup: (projectId) => dispatch({ kind: 'cleanup.confirm', projectId }),
+    cancelCleanup: (projectId) => dispatch({ kind: 'cleanup.cancel', projectId }),
+    confirmCleanup: (projectId) => confirmCleanup(projectId),
+    highlight: (entityId) => dispatch({ kind: 'highlight', entityId }),
+    toast: showToast,
+  };
+
+  /* ---------- cleanup (archive) ---------- */
 
   const pollers = useRef(new Map<string, ReturnType<typeof setInterval>>());
   const stopPoll = useCallback((id: string) => {
@@ -258,7 +374,7 @@ function Console({ config, user, onSignOut }: ConsoleProps) {
     async (projectId: string) => {
       dispatch({ kind: 'cleanup.start', projectId });
       try {
-        await acquire(projectId, 'cleanup'); // project.archived arrives on the project's channel
+        await acquire(projectId, 'cleanup');
       } catch (err) {
         log('note', '訂閱失敗：' + errText(err));
       }
@@ -278,17 +394,14 @@ function Console({ config, user, onSignOut }: ConsoleProps) {
         if (Date.now() - startedAt > LIVE_POLL_LIMIT_MS) {
           stopPoll(projectId);
           release(projectId, 'cleanup');
-          dispatch({ kind: 'cleanup.error', projectId, message: '2 分鐘內沒有確認封存完成，請稍後重新整理專案清單' });
+          dispatch({ kind: 'cleanup.error', projectId, message: '2 分鐘內沒有確認封存完成，請稍後重新整理' });
           return;
         }
         if (inFlight) return;
         inFlight = true;
         try {
           const res = (await transport.callTool('project_list', {})) as ProjectListResult;
-          const still = (res?.projects ?? []).some((p) => p.projectId === projectId && p.status !== 'archived');
-          if (!still) dispatch({ kind: 'cleanup.archived', projectId });
-        } catch (err) {
-          log('note', 'project_list 輪詢失敗：' + errText(err));
+          if (!(res?.projects ?? []).some((p) => p.projectId === projectId && p.status !== 'archived')) dispatch({ kind: 'cleanup.archived', projectId });
         } finally {
           inFlight = false;
         }
@@ -298,7 +411,6 @@ function Console({ config, user, onSignOut }: ConsoleProps) {
     [acquire, release, transport, config.mode, log, stopPoll],
   );
 
-  // Step animation while any cleanup is running (holds on the last step until confirmed).
   const runningCleanups = Object.entries(state.cleanup)
     .filter(([, c]) => c.phase === 'running')
     .map(([id]) => id)
@@ -310,7 +422,6 @@ function Console({ config, user, onSignOut }: ConsoleProps) {
     return () => clearInterval(h);
   }, [runningCleanups]);
 
-  // Confirmed: show every step done for a beat, then drop the project and tell the user.
   const removing = useRef(new Set<string>());
   useEffect(() => {
     for (const [projectId, c] of Object.entries(state.cleanup)) {
@@ -321,11 +432,7 @@ function Console({ config, user, onSignOut }: ConsoleProps) {
         removing.current.delete(projectId);
         dispatch({ kind: 'cleanup.remove', projectId });
         release(projectId, 'cleanup');
-        showToast(
-          <>
-            已清理 <code>{projectId}</code>：S3 物件交給 Lifecycle 處理，DynamoDB 設定 TTL，向量已刪除。
-          </>,
-        );
+        showToast(<>已封存專案，報告與來源快照留在 S3 封存檔。</>);
       }, CLEANUP_STEP_MS / speedRef.current);
     }
   }, [state.cleanup, release, showToast, stopPoll]);
@@ -338,215 +445,111 @@ function Console({ config, user, onSignOut }: ConsoleProps) {
     [],
   );
 
-  /* ---------- interaction ---------- */
-
-  const onEntity = useCallback((entityId: string) => dispatch({ kind: 'highlight', entityId }), []);
-  const onToggleView = useCallback((findingId: string) => dispatch({ kind: 'view.toggle', findingId }), []);
-  const onApplySwap = useCallback((findingId: string) => {
-    dispatch({ kind: 'swap.apply', findingId });
-    // The swap bar unmounts; keep keyboard focus on the card.
-    requestAnimationFrame(() => document.getElementById('card-' + findingId)?.focus({ preventScroll: true }));
-  }, []);
-  const onGraphFinding = useCallback((findingId: string) => {
-    const el = document.getElementById('card-' + findingId);
-    if (!el) return;
-    el.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'center' });
-  }, []);
-  const clearTemplates = useCallback(() => {
-    if (transport instanceof MockTransport) transport.clearTemplates();
-    dispatch({ kind: 'templates.clear' });
-    log('note', '模板快取已清空，下次研究會重新生成 sub-UI');
-  }, [transport, log]);
-
   /* ---------- render ---------- */
 
   const p = state.project;
-  const st = statsOf(state);
-  const pillCls = !p ? 'idle' : p.status === 'running' ? 'running' : p.status === 'failed' ? 'failed' : 'completed';
-  const pillText = !p ? '沒有開啟中的專案' : p.status === 'running' ? '研究中' : p.status === 'failed' ? '失敗' : '已完成';
-  const hlEntity = state.highlight ? state.entities[state.highlight]?.name ?? state.nodes[state.highlight]?.label ?? state.highlight : null;
-  const questions = useMemo(() => Object.fromEntries(state.order.map((id) => [id, state.slots[id]?.question ?? ''])), [state.order, state.slots]);
-  const claims = useMemo(() => claimIndex(state), [state.order, state.slots]);
-  const ev = useMemo(() => evidenceStats(state), [state.order, state.slots, state.docs]);
-  const labelOf = useCallback((id: string) => findingLabel(state, id), [state.order]);
-  const topicShown = config.mode === 'mock' ? p?.topic || topic : topic;
+  const projectRoute = route.name === 'project' ? route : null;
+  const ready = !!projectRoute && p?.projectId === projectRoute.id;
+  const view: ProjectView | null = ready ? projectRoute!.view ?? defaultView(state) : null;
+  const props = { state, config, actions, busy };
+
+  let body: ReactNode;
+  if (route.name === 'new') body = <Compose key={'new:' + (route.from ?? '')} {...props} fresh from={route.from} />;
+  else if (route.name === 'library' || route.name === 'home') body = <Library {...props} loading={loadingProjects} />;
+  else if (!ready) {
+    body = (
+      <main className="page narrow" id="main">
+        {openError ? (
+          <div className="panel pad stack">
+            <h1 className="sec-h">打不開這個專案</h1>
+            <p className="err">{openError}</p>
+            <a className="btn" href="#/library">
+              回專案庫
+            </a>
+          </div>
+        ) : (
+          <p className="empty">讀取專案…</p>
+        )}
+      </main>
+    );
+  } else if (view === 'plan' && p!.status === 'draft') body = <Compose key={p!.projectId} {...props} />;
+  else {
+    const v = view === 'plan' ? 'run' : view!;
+    body = (
+      <>
+        <ProjectHeader state={state} actions={actions} view={v} busy={busy} refreshing={refreshing} />
+        {v === 'run' ? <Run {...props} /> : v === 'report' ? <Report {...props} /> : <EvidenceDesk {...props} params={projectRoute!.params} />}
+      </>
+    );
+  }
+
+  const navCurrent = (r: Route, name: 'new' | 'evidence' | 'library') =>
+    name === 'new' ? r.name === 'new' || (r.name === 'project' && r.view === 'plan') : name === 'evidence' ? r.name === 'project' && r.view === 'evidence' : r.name === 'library';
+  const evidenceHref = p && p.status !== 'draft' ? projectPath(p.projectId, 'evidence') : null;
 
   return (
-    <div className="wrap">
-      <TopBar
-        mode={config.mode}
-        topic={topicShown}
-        onTopic={setTopic}
-        topicLocked={running}
-        running={running}
-        canRestart={!!p}
-        canSave={p?.status === 'completed'}
-        saving={saving}
-        speed={speed}
-        onSpeed={setSpeed}
-        onStart={() => void start(null)}
-        onRestart={() => p && void start(p.projectId)}
-        onSave={() => void save()}
-        user={user}
-        onSignOut={onSignOut}
-      />
-
-      <div className="status">
-        <span className={'pill ' + pillCls}>
-          <span className="dot" />
-          <span>{pillText}</span>
-        </span>
-        <LivenessIndicator project={p} live={state.live} refreshing={refreshing} onRefresh={() => void refreshStatus()} />
-        <span className="pid-line">
-          {p ? p.projectId + (p.parentProjectId ? '  ← parent ' + p.parentProjectId : '') : ''}
-          {p && config.mode === 'live' && p.topic && p.topic !== topic ? ' · ' + p.topic : ''}
-        </span>
-        {p ? (
-          <div className="stats">
-            <span>
-              Findings <b>{st.ready + '/' + st.total}</b> · 來源 <b>{ev.sources}</b> · 主張 <b>{ev.claims}</b>
-              {ev.claims ? (
-                <>
-                  {' '}
-                  （已佐證 <b>{ev.corroborated}</b>）
-                </>
-              ) : null}{' '}
-              · 關聯 <b>{st.edges}</b> · sub-UI <b>{st.uiReady}</b> · 耗時{' '}
-              <Elapsed running={state.clock.running} startedAt={state.clock.startedAt} scale={state.clock.scale} final={p.stats?.elapsedSec} />
-            </span>
-          </div>
-        ) : null}
-        {p?.status === 'failed' && p.message ? <span className="fail-note">{p.message}</span> : null}
-      </div>
-
-      <div className="layout">
-        <main className="col">
-          <section aria-labelledby="h-plan">
-            <div className="section-hd">
-              <h2 id="h-plan">研究計畫</h2>
-              <span className="hint">Supervisor 拆解的子題，各由一個 sub-agent 平行研究</span>
-            </div>
-            <SupervisorLine agent={state.agents.supervisor} running={p?.status === 'running'} />
-            <PlanList hasProject={!!p} plan={state.plan} order={state.order} slots={state.slots} agents={state.agents} />
-            {p ? <CoverageList requirements={state.requirements} coverage={state.coverage} running={p.status === 'running'} /> : null}
-          </section>
-          {p ? (
-            <section aria-labelledby="h-report">
-              <div className="section-hd">
-                <h2 id="h-report">綜合報告</h2>
-                <span className="hint">
-                  {state.synthesis.status === 'streaming' && p.status === 'running'
-                    ? 'Supervisor 撰寫中，內容逐字出現'
-                    : state.synthesis.verification
-                      ? '每句引用都對回查證過的主張；點 [C#] 看原文引述'
-                      : 'Supervisor 整合各子題，列出矛盾、缺口與後續問題'}
-                </span>
-              </div>
-              <SynthesisView
-                key={p.projectId}
-                synthesis={state.synthesis}
-                running={p.status === 'running'}
-                claims={claims}
-                findingLabel={labelOf}
-                onFinding={onGraphFinding}
-              />
-            </section>
-          ) : null}
-          <section aria-labelledby="h-cards">
-            <div className="section-hd">
-              <h2 id="h-cards">研究結果</h2>
-              <span className="hint">先顯示通用卡片，sub-UI 好了再替換；滑鼠停在卡片上時不會自動替換</span>
-            </div>
-            {!p ? (
-              <div className="empty">
-                {state.notice === 'archived'
-                  ? '專案已封存並清理。按「開始新研究」啟動新的專案，結果會即時串流到這裡。'
-                  : loadingProjects
-                    ? '讀取已儲存的專案…'
-                    : '按「開始新研究」啟動新的專案，結果會即時串流到這裡。'}
-              </div>
-            ) : (
-              <div className="cards">
-                {state.order.map((id) => {
-                  const slot = state.slots[id];
-                  return slot ? (
-                    <FindingCard
-                      key={id}
-                      slot={slot}
-                      label={findingLabel(state, id)}
-                      agent={state.agents[id]}
-                      highlight={state.highlight}
-                      onEntity={onEntity}
-                      onToggleView={onToggleView}
-                      onApplySwap={onApplySwap}
-                    />
-                  ) : null;
-                })}
-              </div>
-            )}
-          </section>
-        </main>
-
-        <aside className="col">
-          <section className="panel graph" aria-labelledby="h-graph">
-            <div className="section-hd">
-              <h2 id="h-graph">關聯圖</h2>
-              <span className="hint">點節點標示相關卡片</span>
-            </div>
-            <Graph nodes={state.nodes} edges={state.edges} order={state.order} questions={questions} highlight={state.highlight} onEntity={onEntity} onFinding={onGraphFinding} />
-            <GraphLegend edges={state.edges} />
-            {hlEntity ? (
-              <div className="hl-note">
-                <span>
-                  標示中：<b>{hlEntity}</b>
-                </span>
-                <button className="btn small" type="button" onClick={() => dispatch({ kind: 'highlight', entityId: null })}>
-                  清除
+    <>
+      <a className="sr-only" href="#main">
+        跳到主要內容
+      </a>
+      <header className="topnav">
+        <a className="brand" href="#/library">
+          <Logo />
+          God Eye
+        </a>
+        <nav className="nav" aria-label="主要">
+          <a href="#/new" aria-current={navCurrent(route, 'new') ? 'page' : undefined}>
+            新研究
+          </a>
+          {evidenceHref ? (
+            <a href={evidenceHref} aria-current={navCurrent(route, 'evidence') ? 'page' : undefined}>
+              證據台
+            </a>
+          ) : (
+            <a className="disabled" aria-disabled="true" title="先開啟一個專案">
+              證據台
+            </a>
+          )}
+          <a href="#/library" aria-current={navCurrent(route, 'library') ? 'page' : undefined}>
+            專案庫
+          </a>
+        </nav>
+        <span className="spacer" />
+        {config.mode === 'mock' ? (
+          <>
+            <span className="mock-badge">模擬資料，非真實研究結果</span>
+            <div className="seg" role="group" aria-label="播放速度">
+              {[1, 2].map((v) => (
+                <button key={v} type="button" aria-pressed={speed === v} onClick={() => setSpeed(v)}>
+                  {v}×
                 </button>
-              </div>
-            ) : null}
-          </section>
-          {p ? (
-            <section className="panel" aria-labelledby="h-src">
-              <div className="section-hd">
-                <h2 id="h-src">來源</h2>
-                <span className="hint">去重、分類並評分過的網頁</span>
-              </div>
-              <SourceList docs={state.docs} />
-            </section>
+              ))}
+            </div>
+          </>
+        ) : null}
+        <div className="user-menu">
+          <button type="button" className="avatar" aria-label={'帳號' + (user ? '：' + user : '')} aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
+            {(user ?? 'E').slice(0, 1).toUpperCase()}
+          </button>
+          {menu ? (
+            <div className="menu" role="menu">
+              <p>{user ?? (config.mode === 'mock' ? '模擬模式' : '已登入')}</p>
+              {onSignOut ? (
+                <button type="button" role="menuitem" onClick={onSignOut}>
+                  登出
+                </button>
+              ) : null}
+            </div>
           ) : null}
-          <section className="panel" aria-labelledby="h-log">
-            <div className="section-hd">
-              <h2 id="h-log">事件串流</h2>
-              <span className="hint mono">{p ? '/research/' + p.projectId : ''}</span>
-            </div>
-            <EventLog log={state.log} />
-          </section>
-          <section className="panel" aria-labelledby="h-proj">
-            <div className="section-hd">
-              <h2 id="h-proj">已儲存專案</h2>
-              <span className="hint mono">s3://research-bucket/projects/</span>
-            </div>
-            <Projects
-              projects={state.projects}
-              currentId={p?.projectId ?? null}
-              running={running}
-              cleanup={state.cleanup}
-              loading={loadingProjects}
-              onAsk={(id) => dispatch({ kind: 'cleanup.confirm', projectId: id })}
-              onCancel={(id) => dispatch({ kind: 'cleanup.cancel', projectId: id })}
-              onConfirm={(id) => void confirmCleanup(id)}
-            />
-            <TemplateList templates={state.templates} onClear={config.mode === 'mock' ? clearTemplates : undefined} />
-          </section>
-        </aside>
-      </div>
+        </div>
+      </header>
+      {body}
       {toast ? (
         <div className="toast" role="status">
           {toast}
         </div>
       ) : null}
-    </div>
+    </>
   );
 }
 
@@ -570,10 +573,17 @@ export default function App() {
     loadConfig()
       .then((cfg) => {
         if (!alive) return;
-        if (cfg.mode === 'live' && !missingLiveFields(cfg).length) configureAmplify(cfg);
+        if (cfg.mode === 'live') {
+          const missing = missingLiveFields(cfg);
+          if (missing.length) {
+            setError('config.json 缺少 live 模式需要的欄位：' + missing.join('、'));
+            return;
+          }
+          configureAmplify(cfg);
+        }
         setConfig(cfg);
       })
-      .catch((err) => alive && setError(errText(err)));
+      .catch((err) => alive && setError('讀不到 config.json：' + errText(err)));
     return () => {
       alive = false;
     };
@@ -581,31 +591,16 @@ export default function App() {
 
   if (error) {
     return (
-      <Boot title="無法載入設定">
-        <p>
-          讀取 <code>config.json</code> 失敗：{error}
-        </p>
+      <Boot title="設定有誤">
+        <p>{error}</p>
       </Boot>
     );
   }
-  if (!config) return <div className="boot" aria-busy="true" />;
-
-  if (config.mode === 'live') {
-    const missing = missingLiveFields(config);
-    if (missing.length) {
-      return (
-        <Boot title="live 模式設定不完整">
-          <p>
-            <code>config.json</code> 缺少：<code>{missing.join('、')}</code>。填好後重新整理，或把 <code>mode</code> 改回 <code>mock</code>。
-          </p>
-        </Boot>
-      );
-    }
-    return (
-      <Authenticator>
-        {({ signOut, user }) => <Console config={config} user={user?.signInDetails?.loginId ?? user?.username} onSignOut={signOut} />}
-      </Authenticator>
-    );
-  }
-  return <Console config={config} />;
+  if (!config) return <Boot title="God Eye Researcher">載入中…</Boot>;
+  if (config.mode === 'mock') return <Workspace config={config} />;
+  return (
+    <Authenticator hideSignUp>
+      {({ signOut, user }) => <Workspace config={config} user={user?.signInDetails?.loginId ?? user?.username} onSignOut={signOut} />}
+    </Authenticator>
+  );
 }

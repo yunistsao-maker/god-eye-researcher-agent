@@ -103,7 +103,8 @@ describe('MockTransport research run', () => {
   it('the seeded project loads with a report and round-2 cards', async () => {
     const t = new MockTransport({ log: () => undefined, getSpeed: () => 1 });
     const list = (await settle(t.callTool('project_list', {}))) as ProjectListResult;
-    const got = (await settle(t.callTool('project_get', { projectId: list.projects[0].projectId }))) as ProjectGetResult;
+    const seeded = list.projects.find((x) => x.status === 'completed')!;
+    const got = (await settle(t.callTool('project_get', { projectId: seeded.projectId }))) as ProjectGetResult;
     const s = hydrate(got);
     expect(s.synthesis.status).toBe('ready');
     expect(s.synthesis.text).toContain('模擬');
