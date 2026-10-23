@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://god-eye-researcher/contracts/ui-spec.schema.json",
+  "title": "UiSpec",
+  "description": "A sub-UI template. Holds no data, only paths into a finding. Rendered by the host with whitelisted components.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["specVersion", "dataShape", "root"],
+  "properties": {
+    "specVersion": { "const": 1 },
+    "dataShape": { "enum": ["comparison", "timeline", "metrics", "list", "other"] },
+    "title": { "type": "string", "maxLength": 80 },
+    "root": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false, "required": ["component", "props"],
+          "properties": {
+            "component": { "const": "Compare" },
+            "props": {
+              "type": "object", "additionalProperties": false, "required": ["columns", "rows"],
+              "properties": {
+                "columns": { "$ref": "#/$defs/path" },
+                "rows": { "$ref": "#/$defs/path" },
+                "emphasizeColumn": { "type": "integer", "minimum": 0, "maximum": 10 }
+              }
+            }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["component", "props"],
+          "properties": {
+            "component": { "const": "Timeline" },
+            "props": {
+              "type": "object", "additionalProperties": false, "required": ["items", "label", "text"],
+              "properties": {
+                "items": { "$ref": "#/$defs/path" },
+                "label": { "$ref": "#/$defs/field" },
+                "text": { "$ref": "#/$defs/field" }
+              }
+            }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["component", "props"],
+          "properties": {
+            "component": { "const": "MetricBars" },
+            "props": {
+              "type": "object", "additionalProperties": false, "required": ["items", "label", "value"],
+              "properties": {
+                "items": { "$ref": "#/$defs/path" },
+                "label": { "$ref": "#/$defs/field" },
+                "value": { "$ref": "#/$defs/field" },
+                "unit": { "$ref": "#/$defs/field" }
+              }
+            }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["component", "props"],
+          "properties": {
+            "component": { "const": "KeyPoints" },
+            "props": {
+              "type": "object", "additionalProperties": false, "required": ["items"],
+              "properties": { "items": { "$ref": "#/$defs/path" } }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "path": { "type": "string", "pattern": "^\\$(\\.[A-Za-z_][A-Za-z0-9_]{0,40}){1,4}$" },
+    "field": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,40}$" }
+  }
+}

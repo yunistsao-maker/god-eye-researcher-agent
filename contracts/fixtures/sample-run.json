@@ -1,0 +1,1528 @@
+{
+ "events": [
+  {
+   "type": "project.created",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.677Z",
+   "data": {
+    "topic": "半導體導入生成式 AI",
+    "parentProjectId": null
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "supervisor",
+    "phase": "planning",
+    "round": 1
+   }
+  },
+  {
+   "type": "plan.ready",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.686Z",
+   "data": {
+    "subQuestions": [
+     {
+      "findingId": "f-1",
+      "question": "哪些環節最早導入？",
+      "dataShape": "comparison",
+      "round": 1
+     },
+     {
+      "findingId": "f-2",
+      "question": "導入時程？",
+      "dataShape": "timeline",
+      "round": 1
+     },
+     {
+      "findingId": "f-3",
+      "question": "部署模式比較？",
+      "dataShape": "comparison",
+      "round": 1
+     },
+     {
+      "findingId": "f-4",
+      "question": "成效數字？",
+      "dataShape": "metrics",
+      "round": 1
+     },
+     {
+      "findingId": "f-5",
+      "question": "主要風險？",
+      "dataShape": "list",
+      "round": 1
+     }
+    ]
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "supervisor",
+    "phase": "waiting",
+    "round": 1,
+    "detail": "等待 5 個 sub-agent"
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "f-1",
+    "phase": "writing",
+    "round": 1
+   }
+  },
+  {
+   "type": "finding.ready",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.716Z",
+   "data": {
+    "finding": {
+     "findingId": "f-1",
+     "projectId": "p-20261022-0a0b0c0d",
+     "question": "哪些環節最早導入？",
+     "summary": "一段足夠長的摘要，說明這個子題的答案。",
+     "keyPoints": [
+      "重點一",
+      "重點二"
+     ],
+     "entities": [
+      {
+       "id": "e-00c4b5f83866",
+       "type": "org",
+       "name": "晶圓廠 A"
+      },
+      {
+       "id": "e-rag",
+       "type": "org",
+       "name": "RAG"
+      }
+     ],
+     "relations": [
+      {
+       "from": "e-rag",
+       "to": "e-00c4b5f83866",
+       "type": "supports"
+      }
+     ],
+     "sources": [
+      {
+       "title": "Report",
+       "url": "https://example.com/r"
+      }
+     ],
+     "dataShape": "comparison",
+     "data": {
+      "columns": [
+       "項目",
+       "階段"
+      ],
+      "rows": [
+       [
+        "知識檢索",
+        "上線"
+       ],
+       [
+        "良率",
+        "試行"
+       ]
+      ]
+     },
+     "confidence": 0.7
+    }
+   }
+  },
+  {
+   "type": "relation.added",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.716Z",
+   "data": {
+    "entities": [
+     {
+      "id": "e-00c4b5f83866",
+      "type": "org",
+      "name": "晶圓廠 A"
+     },
+     {
+      "id": "e-rag",
+      "type": "org",
+      "name": "RAG"
+     }
+    ],
+    "edges": [
+     {
+      "from": "f-1",
+      "to": "e-00c4b5f83866",
+      "type": "mentions"
+     },
+     {
+      "from": "f-1",
+      "to": "e-rag",
+      "type": "mentions"
+     },
+     {
+      "from": "e-rag",
+      "to": "e-00c4b5f83866",
+      "type": "supports"
+     }
+    ]
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "f-1",
+    "phase": "designing",
+    "round": 1
+   }
+  },
+  {
+   "type": "ui.ready",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.743Z",
+   "data": {
+    "findingId": "f-1",
+    "spec": {
+     "specVersion": 1,
+     "dataShape": "comparison",
+     "root": {
+      "component": "Compare",
+      "props": {
+       "columns": "$.data.columns",
+       "rows": "$.data.rows",
+       "emphasizeColumn": 1
+      }
+     },
+     "title": "比較"
+    },
+    "cache": false
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "f-1",
+    "phase": "done",
+    "round": 1
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "f-2",
+    "phase": "writing",
+    "round": 1
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "f-2",
+    "phase": "thinking",
+    "round": 1,
+    "detail": "重新整理答案"
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "f-2",
+    "phase": "writing",
+    "round": 1
+   }
+  },
+  {
+   "type": "finding.ready",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.769Z",
+   "data": {
+    "finding": {
+     "findingId": "f-2",
+     "projectId": "p-20261022-0a0b0c0d",
+     "question": "導入時程？",
+     "summary": "一段足夠長的摘要，說明這個子題的答案。",
+     "keyPoints": [
+      "重點一",
+      "重點二"
+     ],
+     "entities": [
+      {
+       "id": "e-00c4b5f83866",
+       "type": "org",
+       "name": "晶圓廠 A"
+      },
+      {
+       "id": "e-rag",
+       "type": "org",
+       "name": "RAG"
+      }
+     ],
+     "relations": [
+      {
+       "from": "e-rag",
+       "to": "e-00c4b5f83866",
+       "type": "supports"
+      }
+     ],
+     "sources": [
+      {
+       "title": "Report",
+       "url": "https://example.com/r"
+      }
+     ],
+     "dataShape": "timeline",
+     "data": {
+      "items": [
+       {
+        "when": "2024",
+        "what": "試行"
+       }
+      ]
+     },
+     "confidence": 0.7
+    }
+   }
+  },
+  {
+   "type": "relation.added",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.769Z",
+   "data": {
+    "entities": [
+     {
+      "id": "e-00c4b5f83866",
+      "type": "org",
+      "name": "晶圓廠 A"
+     },
+     {
+      "id": "e-rag",
+      "type": "org",
+      "name": "RAG"
+     }
+    ],
+    "edges": [
+     {
+      "from": "f-2",
+      "to": "e-00c4b5f83866",
+      "type": "mentions"
+     },
+     {
+      "from": "f-2",
+      "to": "f-1",
+      "type": "shares_entity",
+      "via": "e-00c4b5f83866"
+     },
+     {
+      "from": "f-2",
+      "to": "e-rag",
+      "type": "mentions"
+     },
+     {
+      "from": "f-2",
+      "to": "f-1",
+      "type": "shares_entity",
+      "via": "e-rag"
+     },
+     {
+      "from": "e-rag",
+      "to": "e-00c4b5f83866",
+      "type": "supports"
+     }
+    ]
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "f-2",
+    "phase": "designing",
+    "round": 1
+   }
+  },
+  {
+   "type": "ui.ready",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.790Z",
+   "data": {
+    "findingId": "f-2",
+    "spec": {
+     "specVersion": 1,
+     "dataShape": "timeline",
+     "root": {
+      "component": "KeyPoints",
+      "props": {
+       "items": "$.keyPoints"
+      }
+     },
+     "title": "比較"
+    },
+    "cache": false
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "f-2",
+    "phase": "done",
+    "round": 1
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "f-3",
+    "phase": "writing",
+    "round": 1
+   }
+  },
+  {
+   "type": "finding.ready",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.812Z",
+   "data": {
+    "finding": {
+     "findingId": "f-3",
+     "projectId": "p-20261022-0a0b0c0d",
+     "question": "部署模式比較？",
+     "summary": "一段足夠長的摘要，說明這個子題的答案。",
+     "keyPoints": [
+      "重點一",
+      "重點二"
+     ],
+     "entities": [
+      {
+       "id": "e-00c4b5f83866",
+       "type": "org",
+       "name": "晶圓廠 A"
+      },
+      {
+       "id": "e-rag",
+       "type": "org",
+       "name": "RAG"
+      }
+     ],
+     "relations": [
+      {
+       "from": "e-rag",
+       "to": "e-00c4b5f83866",
+       "type": "supports"
+      }
+     ],
+     "sources": [
+      {
+       "title": "Report",
+       "url": "https://example.com/r"
+      }
+     ],
+     "dataShape": "comparison",
+     "data": {
+      "columns": [
+       "項目",
+       "階段"
+      ],
+      "rows": [
+       [
+        "知識檢索",
+        "上線"
+       ],
+       [
+        "良率",
+        "試行"
+       ]
+      ]
+     },
+     "confidence": 0.7
+    }
+   }
+  },
+  {
+   "type": "relation.added",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.812Z",
+   "data": {
+    "entities": [
+     {
+      "id": "e-00c4b5f83866",
+      "type": "org",
+      "name": "晶圓廠 A"
+     },
+     {
+      "id": "e-rag",
+      "type": "org",
+      "name": "RAG"
+     }
+    ],
+    "edges": [
+     {
+      "from": "f-3",
+      "to": "e-00c4b5f83866",
+      "type": "mentions"
+     },
+     {
+      "from": "f-3",
+      "to": "f-1",
+      "type": "shares_entity",
+      "via": "e-00c4b5f83866"
+     },
+     {
+      "from": "f-3",
+      "to": "f-2",
+      "type": "shares_entity",
+      "via": "e-00c4b5f83866"
+     },
+     {
+      "from": "f-3",
+      "to": "e-rag",
+      "type": "mentions"
+     },
+     {
+      "from": "f-3",
+      "to": "f-1",
+      "type": "shares_entity",
+      "via": "e-rag"
+     },
+     {
+      "from": "f-3",
+      "to": "f-2",
+      "type": "shares_entity",
+      "via": "e-rag"
+     },
+     {
+      "from": "e-rag",
+      "to": "e-00c4b5f83866",
+      "type": "supports"
+     }
+    ]
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "f-3",
+    "phase": "designing",
+    "round": 1
+   }
+  },
+  {
+   "type": "ui.ready",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.833Z",
+   "data": {
+    "findingId": "f-3",
+    "spec": {
+     "specVersion": 1,
+     "dataShape": "comparison",
+     "root": {
+      "component": "Compare",
+      "props": {
+       "columns": "$.data.columns",
+       "rows": "$.data.rows",
+       "emphasizeColumn": 1
+      }
+     },
+     "title": "比較"
+    },
+    "cache": true
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "f-3",
+    "phase": "done",
+    "round": 1
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "f-4",
+    "phase": "writing",
+    "round": 1
+   }
+  },
+  {
+   "type": "finding.ready",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.858Z",
+   "data": {
+    "finding": {
+     "findingId": "f-4",
+     "projectId": "p-20261022-0a0b0c0d",
+     "question": "成效數字？",
+     "summary": "一段足夠長的摘要，說明這個子題的答案。",
+     "keyPoints": [
+      "重點一",
+      "重點二"
+     ],
+     "entities": [
+      {
+       "id": "e-00c4b5f83866",
+       "type": "org",
+       "name": "晶圓廠 A"
+      },
+      {
+       "id": "e-rag",
+       "type": "org",
+       "name": "RAG"
+      }
+     ],
+     "relations": [
+      {
+       "from": "e-rag",
+       "to": "e-00c4b5f83866",
+       "type": "supports"
+      }
+     ],
+     "sources": [
+      {
+       "title": "Report",
+       "url": "https://example.com/r"
+      }
+     ],
+     "dataShape": "metrics",
+     "data": {
+      "items": [
+       {
+        "label": "時間",
+        "value": -35.0,
+        "unit": "%"
+       }
+      ]
+     },
+     "confidence": 0.7
+    }
+   }
+  },
+  {
+   "type": "relation.added",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.858Z",
+   "data": {
+    "entities": [
+     {
+      "id": "e-00c4b5f83866",
+      "type": "org",
+      "name": "晶圓廠 A"
+     },
+     {
+      "id": "e-rag",
+      "type": "org",
+      "name": "RAG"
+     }
+    ],
+    "edges": [
+     {
+      "from": "f-4",
+      "to": "e-00c4b5f83866",
+      "type": "mentions"
+     },
+     {
+      "from": "f-4",
+      "to": "f-1",
+      "type": "shares_entity",
+      "via": "e-00c4b5f83866"
+     },
+     {
+      "from": "f-4",
+      "to": "f-2",
+      "type": "shares_entity",
+      "via": "e-00c4b5f83866"
+     },
+     {
+      "from": "f-4",
+      "to": "f-3",
+      "type": "shares_entity",
+      "via": "e-00c4b5f83866"
+     },
+     {
+      "from": "f-4",
+      "to": "e-rag",
+      "type": "mentions"
+     },
+     {
+      "from": "f-4",
+      "to": "f-1",
+      "type": "shares_entity",
+      "via": "e-rag"
+     },
+     {
+      "from": "f-4",
+      "to": "f-2",
+      "type": "shares_entity",
+      "via": "e-rag"
+     },
+     {
+      "from": "f-4",
+      "to": "f-3",
+      "type": "shares_entity",
+      "via": "e-rag"
+     },
+     {
+      "from": "e-rag",
+      "to": "e-00c4b5f83866",
+      "type": "supports"
+     }
+    ]
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "f-4",
+    "phase": "designing",
+    "round": 1
+   }
+  },
+  {
+   "type": "ui.ready",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.879Z",
+   "data": {
+    "findingId": "f-4",
+    "spec": {
+     "specVersion": 1,
+     "dataShape": "metrics",
+     "root": {
+      "component": "KeyPoints",
+      "props": {
+       "items": "$.keyPoints"
+      }
+     },
+     "title": "比較"
+    },
+    "cache": false
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "f-4",
+    "phase": "done",
+    "round": 1
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "f-5",
+    "phase": "writing",
+    "round": 1
+   }
+  },
+  {
+   "type": "finding.ready",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.902Z",
+   "data": {
+    "finding": {
+     "findingId": "f-5",
+     "projectId": "p-20261022-0a0b0c0d",
+     "question": "主要風險？",
+     "summary": "一段足夠長的摘要，說明這個子題的答案。",
+     "keyPoints": [
+      "重點一",
+      "重點二"
+     ],
+     "entities": [
+      {
+       "id": "e-00c4b5f83866",
+       "type": "org",
+       "name": "晶圓廠 A"
+      },
+      {
+       "id": "e-rag",
+       "type": "org",
+       "name": "RAG"
+      }
+     ],
+     "relations": [
+      {
+       "from": "e-rag",
+       "to": "e-00c4b5f83866",
+       "type": "supports"
+      }
+     ],
+     "sources": [
+      {
+       "title": "Report",
+       "url": "https://example.com/r"
+      }
+     ],
+     "dataShape": "list",
+     "data": {},
+     "confidence": 0.7
+    }
+   }
+  },
+  {
+   "type": "relation.added",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.902Z",
+   "data": {
+    "entities": [
+     {
+      "id": "e-00c4b5f83866",
+      "type": "org",
+      "name": "晶圓廠 A"
+     },
+     {
+      "id": "e-rag",
+      "type": "org",
+      "name": "RAG"
+     }
+    ],
+    "edges": [
+     {
+      "from": "f-5",
+      "to": "e-00c4b5f83866",
+      "type": "mentions"
+     },
+     {
+      "from": "f-5",
+      "to": "f-1",
+      "type": "shares_entity",
+      "via": "e-00c4b5f83866"
+     },
+     {
+      "from": "f-5",
+      "to": "f-2",
+      "type": "shares_entity",
+      "via": "e-00c4b5f83866"
+     },
+     {
+      "from": "f-5",
+      "to": "f-3",
+      "type": "shares_entity",
+      "via": "e-00c4b5f83866"
+     },
+     {
+      "from": "f-5",
+      "to": "f-4",
+      "type": "shares_entity",
+      "via": "e-00c4b5f83866"
+     },
+     {
+      "from": "f-5",
+      "to": "e-rag",
+      "type": "mentions"
+     },
+     {
+      "from": "f-5",
+      "to": "f-1",
+      "type": "shares_entity",
+      "via": "e-rag"
+     },
+     {
+      "from": "f-5",
+      "to": "f-2",
+      "type": "shares_entity",
+      "via": "e-rag"
+     },
+     {
+      "from": "f-5",
+      "to": "f-3",
+      "type": "shares_entity",
+      "via": "e-rag"
+     },
+     {
+      "from": "f-5",
+      "to": "f-4",
+      "type": "shares_entity",
+      "via": "e-rag"
+     },
+     {
+      "from": "e-rag",
+      "to": "e-00c4b5f83866",
+      "type": "supports"
+     }
+    ]
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "f-5",
+    "phase": "done",
+    "round": 1
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "supervisor",
+    "phase": "reviewing",
+    "round": 1
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "supervisor",
+    "phase": "reporting",
+    "round": 1
+   }
+  },
+  {
+   "type": "synthesis.delta",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "seq": 1,
+    "text": "## 摘要\n\n"
+   }
+  },
+  {
+   "type": "synthesis.delta",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "seq": 2,
+    "text": "最早導入的是知識檢索 [F1]，"
+   }
+  },
+  {
+   "type": "synthesis.delta",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "seq": 3,
+    "text": "時程從 2024 年開始 [F2]。\n\n"
+   }
+  },
+  {
+   "type": "synthesis.delta",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "seq": 4,
+    "text": "## 主要發現\n\n- 部署以混合為主 [F3]\n\n## 矛盾與不確定性\n\n- 成效數字為自評 [F4]\n\n## 尚待研究\n\n- 成本"
+   }
+  },
+  {
+   "type": "synthesis.ready",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.911Z",
+   "data": {
+    "synthesis": {
+     "report": "## 摘要\n\n最早導入的是知識檢索 [F1]，時程從 2024 年開始 [F2]。\n\n## 主要發現\n\n- 部署以混合為主 [F3]\n\n## 矛盾與不確定性\n\n- 成效數字為自評 [F4]\n\n## 尚待研究\n\n- 成本",
+     "contradictions": [
+      "F3 與 F4 對成效的說法不一致"
+     ],
+     "gaps": [
+      "缺少導入成本資料"
+     ],
+     "followUps": [],
+     "createdAt": "2026-10-23T07:52:03Z"
+    }
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T08:00:00.000Z",
+   "data": {
+    "agentId": "supervisor",
+    "phase": "done",
+    "round": 1
+   }
+  },
+  {
+   "type": "project.completed",
+   "projectId": "p-20261022-0a0b0c0d",
+   "ts": "2026-10-23T07:52:03.987Z",
+   "data": {
+    "stats": {
+     "findings": 5,
+     "edges": 31,
+     "uiReady": 4,
+     "elapsedSec": 0
+    }
+   }
+  }
+ ],
+ "projectGet": {
+  "ok": true,
+  "project": {
+   "projectId": "p-20261022-0a0b0c0d",
+   "topic": "半導體導入生成式 AI",
+   "status": "completed",
+   "parentProjectId": null,
+   "createdAt": "2026-10-23T07:52:03Z",
+   "updatedAt": "2026-10-23T07:52:03Z",
+   "findingCount": 5
+  },
+  "plan": [
+   {
+    "findingId": "f-1",
+    "question": "哪些環節最早導入？",
+    "dataShape": "comparison",
+    "round": 1
+   },
+   {
+    "findingId": "f-2",
+    "question": "導入時程？",
+    "dataShape": "timeline",
+    "round": 1
+   },
+   {
+    "findingId": "f-3",
+    "question": "部署模式比較？",
+    "dataShape": "comparison",
+    "round": 1
+   },
+   {
+    "findingId": "f-4",
+    "question": "成效數字？",
+    "dataShape": "metrics",
+    "round": 1
+   },
+   {
+    "findingId": "f-5",
+    "question": "主要風險？",
+    "dataShape": "list",
+    "round": 1
+   }
+  ],
+  "findings": [
+   {
+    "findingId": "f-1",
+    "projectId": "p-20261022-0a0b0c0d",
+    "question": "哪些環節最早導入？",
+    "summary": "一段足夠長的摘要，說明這個子題的答案。",
+    "keyPoints": [
+     "重點一",
+     "重點二"
+    ],
+    "entities": [
+     {
+      "id": "e-00c4b5f83866",
+      "type": "org",
+      "name": "晶圓廠 A"
+     },
+     {
+      "id": "e-rag",
+      "type": "org",
+      "name": "RAG"
+     }
+    ],
+    "relations": [
+     {
+      "from": "e-rag",
+      "to": "e-00c4b5f83866",
+      "type": "supports"
+     }
+    ],
+    "sources": [
+     {
+      "title": "Report",
+      "url": "https://example.com/r"
+     }
+    ],
+    "dataShape": "comparison",
+    "data": {
+     "columns": [
+      "項目",
+      "階段"
+     ],
+     "rows": [
+      [
+       "知識檢索",
+       "上線"
+      ],
+      [
+       "良率",
+       "試行"
+      ]
+     ]
+    },
+    "confidence": 0.7
+   },
+   {
+    "findingId": "f-2",
+    "projectId": "p-20261022-0a0b0c0d",
+    "question": "導入時程？",
+    "summary": "一段足夠長的摘要，說明這個子題的答案。",
+    "keyPoints": [
+     "重點一",
+     "重點二"
+    ],
+    "entities": [
+     {
+      "id": "e-00c4b5f83866",
+      "type": "org",
+      "name": "晶圓廠 A"
+     },
+     {
+      "id": "e-rag",
+      "type": "org",
+      "name": "RAG"
+     }
+    ],
+    "relations": [
+     {
+      "from": "e-rag",
+      "to": "e-00c4b5f83866",
+      "type": "supports"
+     }
+    ],
+    "sources": [
+     {
+      "title": "Report",
+      "url": "https://example.com/r"
+     }
+    ],
+    "dataShape": "timeline",
+    "data": {
+     "items": [
+      {
+       "when": "2024",
+       "what": "試行"
+      }
+     ]
+    },
+    "confidence": 0.7
+   },
+   {
+    "findingId": "f-3",
+    "projectId": "p-20261022-0a0b0c0d",
+    "question": "部署模式比較？",
+    "summary": "一段足夠長的摘要，說明這個子題的答案。",
+    "keyPoints": [
+     "重點一",
+     "重點二"
+    ],
+    "entities": [
+     {
+      "id": "e-00c4b5f83866",
+      "type": "org",
+      "name": "晶圓廠 A"
+     },
+     {
+      "id": "e-rag",
+      "type": "org",
+      "name": "RAG"
+     }
+    ],
+    "relations": [
+     {
+      "from": "e-rag",
+      "to": "e-00c4b5f83866",
+      "type": "supports"
+     }
+    ],
+    "sources": [
+     {
+      "title": "Report",
+      "url": "https://example.com/r"
+     }
+    ],
+    "dataShape": "comparison",
+    "data": {
+     "columns": [
+      "項目",
+      "階段"
+     ],
+     "rows": [
+      [
+       "知識檢索",
+       "上線"
+      ],
+      [
+       "良率",
+       "試行"
+      ]
+     ]
+    },
+    "confidence": 0.7
+   },
+   {
+    "findingId": "f-4",
+    "projectId": "p-20261022-0a0b0c0d",
+    "question": "成效數字？",
+    "summary": "一段足夠長的摘要，說明這個子題的答案。",
+    "keyPoints": [
+     "重點一",
+     "重點二"
+    ],
+    "entities": [
+     {
+      "id": "e-00c4b5f83866",
+      "type": "org",
+      "name": "晶圓廠 A"
+     },
+     {
+      "id": "e-rag",
+      "type": "org",
+      "name": "RAG"
+     }
+    ],
+    "relations": [
+     {
+      "from": "e-rag",
+      "to": "e-00c4b5f83866",
+      "type": "supports"
+     }
+    ],
+    "sources": [
+     {
+      "title": "Report",
+      "url": "https://example.com/r"
+     }
+    ],
+    "dataShape": "metrics",
+    "data": {
+     "items": [
+      {
+       "label": "時間",
+       "value": -35,
+       "unit": "%"
+      }
+     ]
+    },
+    "confidence": 0.7
+   },
+   {
+    "findingId": "f-5",
+    "projectId": "p-20261022-0a0b0c0d",
+    "question": "主要風險？",
+    "summary": "一段足夠長的摘要，說明這個子題的答案。",
+    "keyPoints": [
+     "重點一",
+     "重點二"
+    ],
+    "entities": [
+     {
+      "id": "e-00c4b5f83866",
+      "type": "org",
+      "name": "晶圓廠 A"
+     },
+     {
+      "id": "e-rag",
+      "type": "org",
+      "name": "RAG"
+     }
+    ],
+    "relations": [
+     {
+      "from": "e-rag",
+      "to": "e-00c4b5f83866",
+      "type": "supports"
+     }
+    ],
+    "sources": [
+     {
+      "title": "Report",
+      "url": "https://example.com/r"
+     }
+    ],
+    "dataShape": "list",
+    "data": {},
+    "confidence": 0.7
+   }
+  ],
+  "uiSpecs": {
+   "f-1": {
+    "spec": {
+     "specVersion": 1,
+     "dataShape": "comparison",
+     "root": {
+      "component": "Compare",
+      "props": {
+       "columns": "$.data.columns",
+       "rows": "$.data.rows",
+       "emphasizeColumn": 1
+      }
+     },
+     "title": "比較"
+    },
+    "cache": false
+   },
+   "f-2": {
+    "spec": {
+     "specVersion": 1,
+     "dataShape": "timeline",
+     "root": {
+      "component": "KeyPoints",
+      "props": {
+       "items": "$.keyPoints"
+      }
+     },
+     "title": "比較"
+    },
+    "cache": false
+   },
+   "f-3": {
+    "spec": {
+     "specVersion": 1,
+     "dataShape": "comparison",
+     "root": {
+      "component": "Compare",
+      "props": {
+       "columns": "$.data.columns",
+       "rows": "$.data.rows",
+       "emphasizeColumn": 1
+      }
+     },
+     "title": "比較"
+    },
+    "cache": true
+   },
+   "f-4": {
+    "spec": {
+     "specVersion": 1,
+     "dataShape": "metrics",
+     "root": {
+      "component": "KeyPoints",
+      "props": {
+       "items": "$.keyPoints"
+      }
+     },
+     "title": "比較"
+    },
+    "cache": false
+   }
+  },
+  "entities": [
+   {
+    "id": "e-00c4b5f83866",
+    "name": "晶圓廠 A",
+    "type": "org"
+   },
+   {
+    "id": "e-rag",
+    "name": "RAG",
+    "type": "org"
+   }
+  ],
+  "edges": [
+   {
+    "from": "e-rag",
+    "to": "e-00c4b5f83866",
+    "type": "supports"
+   },
+   {
+    "from": "f-1",
+    "to": "e-00c4b5f83866",
+    "type": "mentions"
+   },
+   {
+    "from": "f-1",
+    "to": "e-rag",
+    "type": "mentions"
+   },
+   {
+    "from": "f-2",
+    "to": "e-00c4b5f83866",
+    "type": "mentions"
+   },
+   {
+    "from": "f-2",
+    "to": "e-rag",
+    "type": "mentions"
+   },
+   {
+    "from": "f-2",
+    "to": "f-1",
+    "type": "shares_entity",
+    "via": "e-00c4b5f83866"
+   },
+   {
+    "from": "f-2",
+    "to": "f-1",
+    "type": "shares_entity",
+    "via": "e-rag"
+   },
+   {
+    "from": "f-3",
+    "to": "e-00c4b5f83866",
+    "type": "mentions"
+   },
+   {
+    "from": "f-3",
+    "to": "e-rag",
+    "type": "mentions"
+   },
+   {
+    "from": "f-3",
+    "to": "f-1",
+    "type": "shares_entity",
+    "via": "e-00c4b5f83866"
+   },
+   {
+    "from": "f-3",
+    "to": "f-1",
+    "type": "shares_entity",
+    "via": "e-rag"
+   },
+   {
+    "from": "f-3",
+    "to": "f-2",
+    "type": "shares_entity",
+    "via": "e-00c4b5f83866"
+   },
+   {
+    "from": "f-3",
+    "to": "f-2",
+    "type": "shares_entity",
+    "via": "e-rag"
+   },
+   {
+    "from": "f-4",
+    "to": "e-00c4b5f83866",
+    "type": "mentions"
+   },
+   {
+    "from": "f-4",
+    "to": "e-rag",
+    "type": "mentions"
+   },
+   {
+    "from": "f-4",
+    "to": "f-1",
+    "type": "shares_entity",
+    "via": "e-00c4b5f83866"
+   },
+   {
+    "from": "f-4",
+    "to": "f-1",
+    "type": "shares_entity",
+    "via": "e-rag"
+   },
+   {
+    "from": "f-4",
+    "to": "f-2",
+    "type": "shares_entity",
+    "via": "e-00c4b5f83866"
+   },
+   {
+    "from": "f-4",
+    "to": "f-2",
+    "type": "shares_entity",
+    "via": "e-rag"
+   },
+   {
+    "from": "f-4",
+    "to": "f-3",
+    "type": "shares_entity",
+    "via": "e-00c4b5f83866"
+   },
+   {
+    "from": "f-4",
+    "to": "f-3",
+    "type": "shares_entity",
+    "via": "e-rag"
+   },
+   {
+    "from": "f-5",
+    "to": "e-00c4b5f83866",
+    "type": "mentions"
+   },
+   {
+    "from": "f-5",
+    "to": "e-rag",
+    "type": "mentions"
+   },
+   {
+    "from": "f-5",
+    "to": "f-1",
+    "type": "shares_entity",
+    "via": "e-00c4b5f83866"
+   },
+   {
+    "from": "f-5",
+    "to": "f-1",
+    "type": "shares_entity",
+    "via": "e-rag"
+   },
+   {
+    "from": "f-5",
+    "to": "f-2",
+    "type": "shares_entity",
+    "via": "e-00c4b5f83866"
+   },
+   {
+    "from": "f-5",
+    "to": "f-2",
+    "type": "shares_entity",
+    "via": "e-rag"
+   },
+   {
+    "from": "f-5",
+    "to": "f-3",
+    "type": "shares_entity",
+    "via": "e-00c4b5f83866"
+   },
+   {
+    "from": "f-5",
+    "to": "f-3",
+    "type": "shares_entity",
+    "via": "e-rag"
+   },
+   {
+    "from": "f-5",
+    "to": "f-4",
+    "type": "shares_entity",
+    "via": "e-00c4b5f83866"
+   },
+   {
+    "from": "f-5",
+    "to": "f-4",
+    "type": "shares_entity",
+    "via": "e-rag"
+   }
+  ],
+  "synthesis": {
+   "report": "## 摘要\n\n最早導入的是知識檢索 [F1]，時程從 2024 年開始 [F2]。\n\n## 主要發現\n\n- 部署以混合為主 [F3]\n\n## 矛盾與不確定性\n\n- 成效數字為自評 [F4]\n\n## 尚待研究\n\n- 成本",
+   "contradictions": [
+    "F3 與 F4 對成效的說法不一致"
+   ],
+   "gaps": [
+    "缺少導入成本資料"
+   ],
+   "followUps": [],
+   "createdAt": "2026-10-23T07:52:03Z"
+  }
+ }
+}

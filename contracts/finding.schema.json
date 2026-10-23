@@ -1,0 +1,267 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://god-eye-researcher/contracts/finding.schema.json",
+  "title": "Finding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "findingId",
+    "projectId",
+    "question",
+    "summary",
+    "keyPoints",
+    "entities",
+    "sources",
+    "dataShape",
+    "data",
+    "confidence"
+  ],
+  "properties": {
+    "findingId": {
+      "type": "string",
+      "pattern": "^f-[a-z0-9-]{1,40}$"
+    },
+    "projectId": {
+      "type": "string",
+      "pattern": "^p-[a-z0-9-]{4,60}$"
+    },
+    "question": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 300
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 1200
+    },
+    "keyPoints": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "string",
+        "maxLength": 400
+      }
+    },
+    "entities": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "type",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^e-[a-z0-9-]{1,60}$"
+          },
+          "type": {
+            "enum": [
+              "org",
+              "person",
+              "tech",
+              "domain",
+              "place",
+              "concept",
+              "other"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        }
+      }
+    },
+    "relations": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from",
+          "to",
+          "type"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "pattern": "^[ef]-[a-z0-9-]{1,60}$"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^[ef]-[a-z0-9-]{1,60}$"
+          },
+          "type": {
+            "enum": [
+              "supports",
+              "contradicts",
+              "causes"
+            ]
+          }
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "url"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^https?://"
+          }
+        }
+      }
+    },
+    "dataShape": {
+      "enum": [
+        "comparison",
+        "timeline",
+        "metrics",
+        "list",
+        "other"
+      ]
+    },
+    "data": {
+      "type": "object"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "claims": {
+      "type": "array",
+      "maxItems": 12,
+      "description": "Atomic claims, each backed by quotes that finding_write found in the stored page snapshots",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "claimId",
+          "text",
+          "status",
+          "independentSources",
+          "supporting",
+          "contradicting",
+          "evidence"
+        ],
+        "properties": {
+          "claimId": {
+            "type": "string",
+            "pattern": "^c-[a-z0-9-]{1,60}$"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 500
+          },
+          "status": {
+            "enum": [
+              "asserted",
+              "corroborated",
+              "contested",
+              "superseded"
+            ]
+          },
+          "independentSources": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "supporting": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "contradicting": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "docId",
+                "quote",
+                "stance",
+                "charStart",
+                "charEnd",
+                "url"
+              ],
+              "properties": {
+                "docId": {
+                  "type": "string",
+                  "pattern": "^d-[a-f0-9]{12}$"
+                },
+                "quote": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 600
+                },
+                "stance": {
+                  "enum": [
+                    "supports",
+                    "contradicts"
+                  ]
+                },
+                "charStart": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "charEnd": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "publisher": {
+                  "type": "string"
+                },
+                "duplicateOf": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "sourceType": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+cdk.out/
+node_modules/
+frontend/dist/
+frontend/.env.local
+deploy-outputs.json
+.DS_Store

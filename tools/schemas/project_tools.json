@@ -1,0 +1,133 @@
+[
+  {
+    "name": "project_save",
+    "description": "Create a project (status running) or update its status. status completed writes graph.json and manifest.json to S3.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Project id, e.g. p-20261022-1a2b3c4d"
+        },
+        "status": {
+          "type": "string",
+          "description": "running | completed | failed"
+        },
+        "topic": {
+          "type": "string"
+        },
+        "parentProjectId": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "runtimeSessionId": {
+          "type": "string"
+        },
+        "_caller": {
+          "type": "string",
+          "description": "Set by the gateway from the caller's token. Leave empty."
+        }
+      },
+      "required": [
+        "projectId",
+        "status"
+      ]
+    }
+  },
+  {
+    "name": "project_stop",
+    "description": "Stop a running project for good: status becomes stopped, later writes are refused, and project.stopped is announced. Idempotent. Returns the runtime session id so the caller can also stop the research runtime.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Project id, e.g. p-20261022-1a2b3c4d"
+        },
+        "_caller": {
+          "type": "string",
+          "description": "Set by the gateway from the caller's token. Leave empty."
+        }
+      },
+      "required": [
+        "projectId"
+      ]
+    }
+  },
+  {
+    "name": "project_list",
+    "description": "List the caller's projects, newest first.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "_caller": {
+          "type": "string",
+          "description": "Set by the gateway from the caller's token. Leave empty."
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "project_get",
+    "description": "Return a project with its plan, findings, sub-UI specs, entities and edges.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Project id, e.g. p-20261022-1a2b3c4d"
+        },
+        "_caller": {
+          "type": "string",
+          "description": "Set by the gateway from the caller's token. Leave empty."
+        }
+      },
+      "required": [
+        "projectId"
+      ]
+    }
+  },
+  {
+    "name": "project_restart",
+    "description": "Allocate a new project id that continues an existing project.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "parentProjectId": {
+          "type": "string",
+          "description": "Project id, e.g. p-20261022-1a2b3c4d"
+        },
+        "_caller": {
+          "type": "string",
+          "description": "Set by the gateway from the caller's token. Leave empty."
+        }
+      },
+      "required": [
+        "parentProjectId"
+      ]
+    }
+  },
+  {
+    "name": "project_cleanup",
+    "description": "Archive and clean up a project in the background. A running project must be stopped first.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Project id, e.g. p-20261022-1a2b3c4d"
+        },
+        "_caller": {
+          "type": "string",
+          "description": "Set by the gateway from the caller's token. Leave empty."
+        }
+      },
+      "required": [
+        "projectId"
+      ]
+    }
+  }
+]

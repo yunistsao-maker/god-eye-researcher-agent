@@ -1,0 +1,358 @@
+[
+  {
+    "name": "plan_save",
+    "description": "Save the full research plan (all rounds) and announce it to the UI.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Project id, e.g. p-20261022-1a2b3c4d"
+        },
+        "subQuestions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "findingId": {
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              },
+              "dataShape": {
+                "type": "string",
+                "description": "One of: comparison, timeline, metrics, list, other"
+              },
+              "round": {
+                "type": "integer",
+                "description": "1 for the initial plan, 2+ for follow-up rounds"
+              }
+            }
+          }
+        },
+        "requirements": {
+          "type": "array",
+          "description": "What a complete answer must cover (explicit and implicit), at most 12",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "q1, q2, ..."
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "_caller": {
+          "type": "string",
+          "description": "Set by the gateway from the caller's token. Leave empty."
+        }
+      },
+      "required": [
+        "projectId",
+        "subQuestions"
+      ]
+    }
+  },
+  {
+    "name": "coverage_save",
+    "description": "Save how well the findings so far cover each requirement, and announce it to the UI.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Project id, e.g. p-20261022-1a2b3c4d"
+        },
+        "round": {
+          "type": "integer"
+        },
+        "coverage": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "description": "covered | weak | missing"
+              },
+              "claimIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "note": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "_caller": {
+          "type": "string",
+          "description": "Set by the gateway from the caller's token. Leave empty."
+        }
+      },
+      "required": [
+        "projectId",
+        "coverage"
+      ]
+    }
+  },
+  {
+    "name": "synthesis_write",
+    "description": "Save the final research report (Markdown) with review notes and announce it to the UI.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Project id, e.g. p-20261022-1a2b3c4d"
+        },
+        "report": {
+          "type": "string"
+        },
+        "contradictions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "gaps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "followUps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "citations": {
+          "type": "object",
+          "description": "Maps each [C#] marker in the report to {claimId, findingId}"
+        },
+        "verification": {
+          "type": "object",
+          "description": "Sentence-level check results: citedSentences, supported, partial, unsupported, revised, removed, uncitedSentences, unknownCitations, claimsCited, precisionBefore, precisionAfter, deadUrls"
+        },
+        "_caller": {
+          "type": "string",
+          "description": "Set by the gateway from the caller's token. Leave empty."
+        }
+      },
+      "required": [
+        "projectId",
+        "report"
+      ]
+    }
+  },
+  {
+    "name": "finding_write",
+    "description": "Validate and save one finding: every claim quote is checked against the stored page text, claim status (asserted, corroborated, contested) is computed from independent publishers, then relations are computed and the finding is pushed to the UI.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Project id, e.g. p-20261022-1a2b3c4d"
+        },
+        "finding": {
+          "type": "object",
+          "description": "A finding as defined in contracts/finding.schema.json",
+          "properties": {
+            "findingId": {
+              "type": "string"
+            },
+            "projectId": {
+              "type": "string"
+            },
+            "question": {
+              "type": "string"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "keyPoints": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "entities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "relations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "dataShape": {
+              "type": "string",
+              "description": "One of: comparison, timeline, metrics, list, other"
+            },
+            "data": {
+              "type": "object",
+              "description": "Shape-specific payload; see contracts/events.md"
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "claims": {
+              "type": "array",
+              "description": "Atomic claims, each backed by verbatim quotes from pages read with fetch_page (projectId set)",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  },
+                  "evidence": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "docId": {
+                          "type": "string",
+                          "description": "docId returned by fetch_page"
+                        },
+                        "quote": {
+                          "type": "string",
+                          "description": "Exact passage copied from the page text, 8-600 chars"
+                        },
+                        "stance": {
+                          "type": "string",
+                          "description": "supports | contradicts"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "required": [
+            "findingId",
+            "question",
+            "summary",
+            "keyPoints",
+            "entities",
+            "sources",
+            "dataShape",
+            "data",
+            "confidence"
+          ]
+        },
+        "_caller": {
+          "type": "string",
+          "description": "Set by the gateway from the caller's token. Leave empty."
+        }
+      },
+      "required": [
+        "projectId",
+        "finding"
+      ]
+    }
+  },
+  {
+    "name": "ui_template_get",
+    "description": "Look up the shared sub-UI template for a dataShape.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dataShape": {
+          "type": "string",
+          "description": "One of: comparison, timeline, metrics, list, other"
+        },
+        "_caller": {
+          "type": "string",
+          "description": "Set by the gateway from the caller's token. Leave empty."
+        }
+      },
+      "required": [
+        "dataShape"
+      ]
+    }
+  },
+  {
+    "name": "ui_spec_write",
+    "description": "Validate a sub-UI spec against the component whitelist and the finding, save it and push it to the UI.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Project id, e.g. p-20261022-1a2b3c4d"
+        },
+        "findingId": {
+          "type": "string"
+        },
+        "spec": {
+          "type": "object",
+          "description": "A sub-UI spec as defined in contracts/ui-spec.schema.json"
+        },
+        "fromCache": {
+          "type": "boolean"
+        },
+        "_caller": {
+          "type": "string",
+          "description": "Set by the gateway from the caller's token. Leave empty."
+        }
+      },
+      "required": [
+        "projectId",
+        "findingId",
+        "spec"
+      ]
+    }
+  }
+]

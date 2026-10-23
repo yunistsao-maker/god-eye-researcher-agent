@@ -1,0 +1,889 @@
+{
+ "events": [
+  {
+   "type": "project.created",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-23T16:14:18.583Z",
+   "data": {
+    "topic": "AI 視覺檢測導入",
+    "parentProjectId": null
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-24T08:00:00.000Z",
+   "data": {
+    "agentId": "supervisor",
+    "phase": "planning",
+    "round": 1
+   }
+  },
+  {
+   "type": "plan.ready",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-23T16:14:18.591Z",
+   "data": {
+    "subQuestions": [
+     {
+      "findingId": "f-1",
+      "question": "導入現況？",
+      "dataShape": "list",
+      "round": 1
+     },
+     {
+      "findingId": "f-2",
+      "question": "投資回收期？",
+      "dataShape": "list",
+      "round": 1
+     }
+    ],
+    "requirements": [
+     {
+      "id": "q1",
+      "text": "導入現況"
+     },
+     {
+      "id": "q2",
+      "text": "成本與回收期"
+     },
+     {
+      "id": "q3",
+      "text": "法規要求"
+     }
+    ]
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-24T08:00:00.000Z",
+   "data": {
+    "agentId": "supervisor",
+    "phase": "waiting",
+    "round": 1,
+    "detail": "等待 2 個 sub-agent"
+   }
+  },
+  {
+   "type": "source.added",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-23T16:14:18.616Z",
+   "data": {
+    "doc": {
+     "docId": "d-d7d761fa26fd",
+     "url": "https://www.stat.example.gov.tw/ai-survey",
+     "canonicalUrl": "https://stat.example.gov.tw/ai-survey",
+     "title": "製造業 AI 導入調查",
+     "publisher": "example.gov.tw",
+     "publishedDate": "2026-05-01",
+     "sourceType": "government",
+     "score": 0.9,
+     "duplicateOf": null,
+     "via": "direct",
+     "fetchedAt": "2026-10-23T16:14:18Z"
+    }
+   }
+  },
+  {
+   "type": "source.added",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-23T16:14:18.637Z",
+   "data": {
+    "doc": {
+     "docId": "d-9ca33f0e781c",
+     "url": "https://news.example.com/ai-inspection",
+     "canonicalUrl": "https://news.example.com/ai-inspection",
+     "title": "AI inspection goes mainstream",
+     "publisher": "example.com",
+     "publishedDate": "2026-06-10",
+     "sourceType": "unknown",
+     "score": 0.5,
+     "duplicateOf": null,
+     "via": "direct",
+     "fetchedAt": "2026-10-23T16:14:18Z"
+    }
+   }
+  },
+  {
+   "type": "source.added",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-23T16:14:18.663Z",
+   "data": {
+    "doc": {
+     "docId": "d-6e3ec00dc2d0",
+     "url": "https://copy.example.org/syndicated",
+     "canonicalUrl": "https://copy.example.org/syndicated",
+     "title": "AI inspection (syndicated)",
+     "publisher": "example.org",
+     "publishedDate": "2026-06-11",
+     "sourceType": "unknown",
+     "score": 0.5,
+     "duplicateOf": "d-9ca33f0e781c",
+     "via": "direct",
+     "fetchedAt": "2026-10-23T16:14:18Z"
+    }
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-24T08:00:00.000Z",
+   "data": {
+    "agentId": "f-1",
+    "phase": "writing",
+    "round": 1
+   }
+  },
+  {
+   "type": "finding.ready",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-23T16:14:18.723Z",
+   "data": {
+    "finding": {
+     "findingId": "f-1",
+     "projectId": "p-20261024-0e0f0a0b",
+     "question": "導入現況？",
+     "summary": "一段足夠長的摘要，說明這個子題的答案。",
+     "keyPoints": [
+      "重點"
+     ],
+     "entities": [
+      {
+       "id": "e-aoi",
+       "type": "tech",
+       "name": "AOI"
+      }
+     ],
+     "relations": [],
+     "sources": [
+      {
+       "title": "製造業 AI 導入調查",
+       "url": "https://www.stat.example.gov.tw/ai-survey"
+      },
+      {
+       "title": "AI inspection (syndicated)",
+       "url": "https://copy.example.org/syndicated"
+      }
+     ],
+     "dataShape": "list",
+     "data": {},
+     "confidence": 0.7,
+     "claims": [
+      {
+       "claimId": "c-1-1",
+       "text": "多數廠商保留 AOI 設備並加上 AI 複判",
+       "status": "corroborated",
+       "independentSources": 2,
+       "supporting": 2,
+       "contradicting": 0,
+       "evidence": [
+        {
+         "docId": "d-d7d761fa26fd",
+         "quote": "導入 AI 視覺檢測的廠商多半保留既有 AOI 設備",
+         "stance": "supports",
+         "charStart": 14,
+         "charEnd": 40,
+         "url": "https://www.stat.example.gov.tw/ai-survey",
+         "title": "製造業 AI 導入調查",
+         "publisher": "example.gov.tw",
+         "duplicateOf": null,
+         "sourceType": "government",
+         "score": 0.9
+        },
+        {
+         "docId": "d-6e3ec00dc2d0",
+         "quote": "keep their AOI machines and add AI re-inspection on top",
+         "stance": "supports",
+         "charStart": 20,
+         "charEnd": 75,
+         "url": "https://copy.example.org/syndicated",
+         "title": "AI inspection (syndicated)",
+         "publisher": "example.com",
+         "duplicateOf": "d-9ca33f0e781c",
+         "sourceType": "unknown",
+         "score": 0.5
+        }
+       ]
+      },
+      {
+       "claimId": "c-1-2",
+       "text": "標註資料的人力是持續性成本",
+       "status": "asserted",
+       "independentSources": 1,
+       "supporting": 1,
+       "contradicting": 0,
+       "evidence": [
+        {
+         "docId": "d-d7d761fa26fd",
+         "quote": "標註資料的人力是持續性成本",
+         "stance": "supports",
+         "charStart": 550,
+         "charEnd": 563,
+         "url": "https://www.stat.example.gov.tw/ai-survey",
+         "title": "製造業 AI 導入調查",
+         "publisher": "example.gov.tw",
+         "duplicateOf": null,
+         "sourceType": "government",
+         "score": 0.9
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "type": "relation.added",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-23T16:14:18.723Z",
+   "data": {
+    "entities": [
+     {
+      "id": "e-aoi",
+      "type": "tech",
+      "name": "AOI"
+     }
+    ],
+    "edges": [
+     {
+      "from": "f-1",
+      "to": "e-aoi",
+      "type": "mentions"
+     }
+    ]
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-24T08:00:00.000Z",
+   "data": {
+    "agentId": "f-1",
+    "phase": "done",
+    "round": 1
+   }
+  },
+  {
+   "type": "source.added",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-23T16:14:18.756Z",
+   "data": {
+    "doc": {
+     "docId": "d-a7cf0029d5b2",
+     "url": "https://vendor.example.net/whitepaper",
+     "canonicalUrl": "https://vendor.example.net/whitepaper",
+     "title": "Vendor whitepaper",
+     "publisher": "example.net",
+     "publishedDate": null,
+     "sourceType": "unknown",
+     "score": 0.45,
+     "duplicateOf": null,
+     "via": "direct",
+     "fetchedAt": "2026-10-23T16:14:18Z"
+    }
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-24T08:00:00.000Z",
+   "data": {
+    "agentId": "f-2",
+    "phase": "writing",
+    "round": 1
+   }
+  },
+  {
+   "type": "finding.ready",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-23T16:14:18.824Z",
+   "data": {
+    "finding": {
+     "findingId": "f-2",
+     "projectId": "p-20261024-0e0f0a0b",
+     "question": "投資回收期？",
+     "summary": "一段足夠長的摘要，說明這個子題的答案。",
+     "keyPoints": [
+      "重點"
+     ],
+     "entities": [
+      {
+       "id": "e-aoi",
+       "type": "tech",
+       "name": "AOI"
+      }
+     ],
+     "relations": [],
+     "sources": [
+      {
+       "title": "Vendor whitepaper",
+       "url": "https://vendor.example.net/whitepaper"
+      },
+      {
+       "title": "AI inspection goes mainstream",
+       "url": "https://news.example.com/ai-inspection"
+      }
+     ],
+     "dataShape": "list",
+     "data": {},
+     "confidence": 0.7,
+     "claims": [
+      {
+       "claimId": "c-2-1",
+       "text": "設備商宣稱單一產線六個月內回收",
+       "status": "contested",
+       "independentSources": 1,
+       "supporting": 1,
+       "contradicting": 1,
+       "evidence": [
+        {
+         "docId": "d-a7cf0029d5b2",
+         "quote": "recover their investment within six months on a single production line",
+         "stance": "supports",
+         "charStart": 14,
+         "charEnd": 84,
+         "url": "https://vendor.example.net/whitepaper",
+         "title": "Vendor whitepaper",
+         "publisher": "example.net",
+         "duplicateOf": null,
+         "sourceType": "unknown",
+         "score": 0.45
+        },
+        {
+         "docId": "d-9ca33f0e781c",
+         "quote": "Surveys report payback periods longer than vendors suggest",
+         "stance": "contradicts",
+         "charStart": 616,
+         "charEnd": 674,
+         "url": "https://news.example.com/ai-inspection",
+         "title": "AI inspection goes mainstream",
+         "publisher": "example.com",
+         "duplicateOf": null,
+         "sourceType": "unknown",
+         "score": 0.5
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "type": "relation.added",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-23T16:14:18.824Z",
+   "data": {
+    "entities": [
+     {
+      "id": "e-aoi",
+      "type": "tech",
+      "name": "AOI"
+     }
+    ],
+    "edges": [
+     {
+      "from": "f-2",
+      "to": "e-aoi",
+      "type": "mentions"
+     },
+     {
+      "from": "f-2",
+      "to": "f-1",
+      "type": "shares_entity",
+      "via": "e-aoi"
+     }
+    ]
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-24T08:00:00.000Z",
+   "data": {
+    "agentId": "f-2",
+    "phase": "done",
+    "round": 1
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-24T08:00:00.000Z",
+   "data": {
+    "agentId": "supervisor",
+    "phase": "reviewing",
+    "round": 1,
+    "detail": "第 1 輪"
+   }
+  },
+  {
+   "type": "coverage.updated",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-23T16:14:18.835Z",
+   "data": {
+    "round": 1,
+    "requirements": [
+     {
+      "id": "q1",
+      "status": "covered",
+      "claimIds": [
+       "c-1-1"
+      ]
+     },
+     {
+      "id": "q2",
+      "status": "weak",
+      "claimIds": [
+       "c-2-1"
+      ],
+      "note": "說法分歧"
+     },
+     {
+      "id": "q3",
+      "status": "missing",
+      "claimIds": []
+     }
+    ],
+    "updatedAt": "2026-10-23T16:14:18Z"
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-24T08:00:00.000Z",
+   "data": {
+    "agentId": "supervisor",
+    "phase": "reporting",
+    "round": 1
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-24T08:00:00.000Z",
+   "data": {
+    "agentId": "supervisor",
+    "phase": "verifying",
+    "round": 1
+   }
+  },
+  {
+   "type": "synthesis.ready",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-23T16:14:18.853Z",
+   "data": {
+    "synthesis": {
+     "report": "## 摘要\n\n多數廠商保留既有 AOI 設備並加上 AI 複判 [C1]。投資回收期的說法分歧 [C3]。這句話引用了一個根本不存在的主張編號 。\n\n## 主要發現\n\n- 標註資料的人力是持續性成本 [C2]。\n\n## 矛盾與不確定性\n\n- 設備商案例與調查對回收期的說法不同 [C3]。\n\n## 尚待研究\n\n- 法規要求仍待後續研究與確認。",
+     "contradictions": [],
+     "gaps": [
+      "法規要求沒有資料"
+     ],
+     "followUps": [],
+     "createdAt": "2026-10-23T16:14:18Z",
+     "citations": {
+      "C1": {
+       "claimId": "c-1-1",
+       "findingId": "f-1"
+      },
+      "C2": {
+       "claimId": "c-1-2",
+       "findingId": "f-1"
+      },
+      "C3": {
+       "claimId": "c-2-1",
+       "findingId": "f-2"
+      }
+     },
+     "verification": {
+      "citedSentences": 5,
+      "supported": 3,
+      "partial": 1,
+      "unsupported": 1,
+      "revised": 1,
+      "removed": 1,
+      "uncitedSentences": 1,
+      "unknownCitations": 1,
+      "claimsCited": 3,
+      "precisionBefore": 0.6,
+      "precisionAfter": 1.0,
+      "deadUrls": [
+       "https://vendor.example.net/whitepaper"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "type": "agent.activity",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-24T08:00:00.000Z",
+   "data": {
+    "agentId": "supervisor",
+    "phase": "done",
+    "round": 1
+   }
+  },
+  {
+   "type": "project.completed",
+   "projectId": "p-20261024-0e0f0a0b",
+   "ts": "2026-10-23T16:14:18.967Z",
+   "data": {
+    "stats": {
+     "findings": 2,
+     "edges": 3,
+     "uiReady": 0,
+     "sources": 4,
+     "claims": 3,
+     "elapsedSec": 0
+    }
+   }
+  }
+ ],
+ "projectGet": {
+  "ok": true,
+  "project": {
+   "projectId": "p-20261024-0e0f0a0b",
+   "topic": "AI 視覺檢測導入",
+   "status": "completed",
+   "parentProjectId": null,
+   "createdAt": "2026-10-23T16:14:18Z",
+   "updatedAt": "2026-10-23T16:14:18Z",
+   "findingCount": 2
+  },
+  "plan": [
+   {
+    "findingId": "f-1",
+    "question": "導入現況？",
+    "dataShape": "list",
+    "round": 1
+   },
+   {
+    "findingId": "f-2",
+    "question": "投資回收期？",
+    "dataShape": "list",
+    "round": 1
+   }
+  ],
+  "requirements": [
+   {
+    "id": "q1",
+    "text": "導入現況"
+   },
+   {
+    "id": "q2",
+    "text": "成本與回收期"
+   },
+   {
+    "id": "q3",
+    "text": "法規要求"
+   }
+  ],
+  "findings": [
+   {
+    "findingId": "f-1",
+    "projectId": "p-20261024-0e0f0a0b",
+    "question": "導入現況？",
+    "summary": "一段足夠長的摘要，說明這個子題的答案。",
+    "keyPoints": [
+     "重點"
+    ],
+    "entities": [
+     {
+      "id": "e-aoi",
+      "type": "tech",
+      "name": "AOI"
+     }
+    ],
+    "relations": [],
+    "sources": [
+     {
+      "title": "製造業 AI 導入調查",
+      "url": "https://www.stat.example.gov.tw/ai-survey"
+     },
+     {
+      "title": "AI inspection (syndicated)",
+      "url": "https://copy.example.org/syndicated"
+     }
+    ],
+    "dataShape": "list",
+    "data": {},
+    "confidence": 0.7,
+    "claims": [
+     {
+      "claimId": "c-1-1",
+      "text": "多數廠商保留 AOI 設備並加上 AI 複判",
+      "status": "corroborated",
+      "independentSources": 2,
+      "supporting": 2,
+      "contradicting": 0,
+      "evidence": [
+       {
+        "docId": "d-d7d761fa26fd",
+        "quote": "導入 AI 視覺檢測的廠商多半保留既有 AOI 設備",
+        "stance": "supports",
+        "charStart": 14,
+        "charEnd": 40,
+        "url": "https://www.stat.example.gov.tw/ai-survey",
+        "title": "製造業 AI 導入調查",
+        "publisher": "example.gov.tw",
+        "duplicateOf": null,
+        "sourceType": "government",
+        "score": 0.9
+       },
+       {
+        "docId": "d-6e3ec00dc2d0",
+        "quote": "keep their AOI machines and add AI re-inspection on top",
+        "stance": "supports",
+        "charStart": 20,
+        "charEnd": 75,
+        "url": "https://copy.example.org/syndicated",
+        "title": "AI inspection (syndicated)",
+        "publisher": "example.com",
+        "duplicateOf": "d-9ca33f0e781c",
+        "sourceType": "unknown",
+        "score": 0.5
+       }
+      ]
+     },
+     {
+      "claimId": "c-1-2",
+      "text": "標註資料的人力是持續性成本",
+      "status": "asserted",
+      "independentSources": 1,
+      "supporting": 1,
+      "contradicting": 0,
+      "evidence": [
+       {
+        "docId": "d-d7d761fa26fd",
+        "quote": "標註資料的人力是持續性成本",
+        "stance": "supports",
+        "charStart": 550,
+        "charEnd": 563,
+        "url": "https://www.stat.example.gov.tw/ai-survey",
+        "title": "製造業 AI 導入調查",
+        "publisher": "example.gov.tw",
+        "duplicateOf": null,
+        "sourceType": "government",
+        "score": 0.9
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "findingId": "f-2",
+    "projectId": "p-20261024-0e0f0a0b",
+    "question": "投資回收期？",
+    "summary": "一段足夠長的摘要，說明這個子題的答案。",
+    "keyPoints": [
+     "重點"
+    ],
+    "entities": [
+     {
+      "id": "e-aoi",
+      "type": "tech",
+      "name": "AOI"
+     }
+    ],
+    "relations": [],
+    "sources": [
+     {
+      "title": "Vendor whitepaper",
+      "url": "https://vendor.example.net/whitepaper"
+     },
+     {
+      "title": "AI inspection goes mainstream",
+      "url": "https://news.example.com/ai-inspection"
+     }
+    ],
+    "dataShape": "list",
+    "data": {},
+    "confidence": 0.7,
+    "claims": [
+     {
+      "claimId": "c-2-1",
+      "text": "設備商宣稱單一產線六個月內回收",
+      "status": "contested",
+      "independentSources": 1,
+      "supporting": 1,
+      "contradicting": 1,
+      "evidence": [
+       {
+        "docId": "d-a7cf0029d5b2",
+        "quote": "recover their investment within six months on a single production line",
+        "stance": "supports",
+        "charStart": 14,
+        "charEnd": 84,
+        "url": "https://vendor.example.net/whitepaper",
+        "title": "Vendor whitepaper",
+        "publisher": "example.net",
+        "duplicateOf": null,
+        "sourceType": "unknown",
+        "score": 0.45
+       },
+       {
+        "docId": "d-9ca33f0e781c",
+        "quote": "Surveys report payback periods longer than vendors suggest",
+        "stance": "contradicts",
+        "charStart": 616,
+        "charEnd": 674,
+        "url": "https://news.example.com/ai-inspection",
+        "title": "AI inspection goes mainstream",
+        "publisher": "example.com",
+        "duplicateOf": null,
+        "sourceType": "unknown",
+        "score": 0.5
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "uiSpecs": {},
+  "entities": [
+   {
+    "id": "e-aoi",
+    "name": "AOI",
+    "type": "tech"
+   }
+  ],
+  "edges": [
+   {
+    "from": "f-1",
+    "to": "e-aoi",
+    "type": "mentions"
+   },
+   {
+    "from": "f-2",
+    "to": "e-aoi",
+    "type": "mentions"
+   },
+   {
+    "from": "f-2",
+    "to": "f-1",
+    "type": "shares_entity",
+    "via": "e-aoi"
+   }
+  ],
+  "docs": [
+   {
+    "docId": "d-6e3ec00dc2d0",
+    "url": "https://copy.example.org/syndicated",
+    "canonicalUrl": "https://copy.example.org/syndicated",
+    "title": "AI inspection (syndicated)",
+    "publisher": "example.org",
+    "publishedDate": "2026-06-11",
+    "sourceType": "unknown",
+    "score": 0.5,
+    "duplicateOf": "d-9ca33f0e781c",
+    "via": "direct",
+    "fetchedAt": "2026-10-23T16:14:18Z"
+   },
+   {
+    "docId": "d-9ca33f0e781c",
+    "url": "https://news.example.com/ai-inspection",
+    "canonicalUrl": "https://news.example.com/ai-inspection",
+    "title": "AI inspection goes mainstream",
+    "publisher": "example.com",
+    "publishedDate": "2026-06-10",
+    "sourceType": "unknown",
+    "score": 0.5,
+    "duplicateOf": null,
+    "via": "direct",
+    "fetchedAt": "2026-10-23T16:14:18Z"
+   },
+   {
+    "docId": "d-a7cf0029d5b2",
+    "url": "https://vendor.example.net/whitepaper",
+    "canonicalUrl": "https://vendor.example.net/whitepaper",
+    "title": "Vendor whitepaper",
+    "publisher": "example.net",
+    "publishedDate": null,
+    "sourceType": "unknown",
+    "score": 0.45,
+    "duplicateOf": null,
+    "via": "direct",
+    "fetchedAt": "2026-10-23T16:14:18Z"
+   },
+   {
+    "docId": "d-d7d761fa26fd",
+    "url": "https://www.stat.example.gov.tw/ai-survey",
+    "canonicalUrl": "https://stat.example.gov.tw/ai-survey",
+    "title": "製造業 AI 導入調查",
+    "publisher": "example.gov.tw",
+    "publishedDate": "2026-05-01",
+    "sourceType": "government",
+    "score": 0.9,
+    "duplicateOf": null,
+    "via": "direct",
+    "fetchedAt": "2026-10-23T16:14:18Z"
+   }
+  ],
+  "coverage": {
+   "round": 1,
+   "requirements": [
+    {
+     "id": "q1",
+     "status": "covered",
+     "claimIds": [
+      "c-1-1"
+     ]
+    },
+    {
+     "id": "q2",
+     "status": "weak",
+     "claimIds": [
+      "c-2-1"
+     ],
+     "note": "說法分歧"
+    },
+    {
+     "id": "q3",
+     "status": "missing",
+     "claimIds": []
+    }
+   ],
+   "updatedAt": "2026-10-23T16:14:18Z"
+  },
+  "synthesis": {
+   "report": "## 摘要\n\n多數廠商保留既有 AOI 設備並加上 AI 複判 [C1]。投資回收期的說法分歧 [C3]。這句話引用了一個根本不存在的主張編號 。\n\n## 主要發現\n\n- 標註資料的人力是持續性成本 [C2]。\n\n## 矛盾與不確定性\n\n- 設備商案例與調查對回收期的說法不同 [C3]。\n\n## 尚待研究\n\n- 法規要求仍待後續研究與確認。",
+   "contradictions": [],
+   "gaps": [
+    "法規要求沒有資料"
+   ],
+   "followUps": [],
+   "createdAt": "2026-10-23T16:14:18Z",
+   "citations": {
+    "C1": {
+     "claimId": "c-1-1",
+     "findingId": "f-1"
+    },
+    "C2": {
+     "claimId": "c-1-2",
+     "findingId": "f-1"
+    },
+    "C3": {
+     "claimId": "c-2-1",
+     "findingId": "f-2"
+    }
+   },
+   "verification": {
+    "citedSentences": 5,
+    "supported": 3,
+    "partial": 1,
+    "unsupported": 1,
+    "revised": 1,
+    "removed": 1,
+    "uncitedSentences": 1,
+    "unknownCitations": 1,
+    "claimsCited": 3,
+    "precisionBefore": 0.6,
+    "precisionAfter": 1,
+    "deadUrls": [
+     "https://vendor.example.net/whitepaper"
+    ]
+   }
+  }
+ }
+}
