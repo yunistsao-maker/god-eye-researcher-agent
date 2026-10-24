@@ -333,9 +333,9 @@ class Orchestrator:
         brief = brief or Brief()
         self._derive_settings(brief)
         sup = self.tracker.agent("supervisor")
-        self._call("project-tools", "project_save", projectId=project_id, status="draft", topic=topic,
-                   parentProjectId=parent_project_id, brief=brief.to_dict())
         try:
+            self._call("project-tools", "project_save", projectId=project_id, status="draft", topic=topic,
+                       parentProjectId=parent_project_id, brief=brief.to_dict())
             subs, requirements = self._plan(topic, parent_project_id, brief, sup)
             self._call("data-tools", "plan_propose", projectId=project_id, by="agent", brief=brief.to_dict(),
                        subQuestions=[{k: q[k] for k in ("findingId", "question", "dataShape")} for q in subs], requirements=requirements)
