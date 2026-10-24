@@ -259,6 +259,16 @@
                 }
               }
             }
+          },
+          "updates": {
+            "type": "string",
+            "pattern": "^c-[a-z0-9-]{1,60}$",
+            "description": "The earlier claim this one replaces (incremental runs)"
+          },
+          "supersededBy": {
+            "type": "string",
+            "pattern": "^c-[a-z0-9-]{1,60}$",
+            "description": "The newer claim that replaced this one"
           }
         }
       }

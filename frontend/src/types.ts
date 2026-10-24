@@ -69,7 +69,7 @@ export interface SourceDoc {
   fetchedAt?: string;
 }
 
-export type ClaimStatus = 'corroborated' | 'asserted' | 'contested';
+export type ClaimStatus = 'corroborated' | 'asserted' | 'contested' | 'superseded';
 export type Stance = 'supports' | 'contradicts';
 
 /** A verbatim quote, checked by the backend against the stored page text. */
@@ -96,6 +96,10 @@ export interface Claim {
   supporting: number;
   contradicting: number;
   evidence: Evidence[];
+  /** Incremental runs: the earlier claim this one replaced. */
+  updates?: string;
+  /** Set when a newer claim replaced this one (status superseded). */
+  supersededBy?: string;
 }
 
 /** A research requirement the plan commits to answering (from plan.ready / project_get). */
@@ -173,7 +177,20 @@ export interface UiSpec {
 }
 
 /* Projects (project-tools) */
-export type ProjectStatus = 'running' | 'completed' | 'failed' | 'archiving' | 'archived';
+export type ProjectStatus = 'draft' | 'running' | 'completed' | 'failed' | 'stopped' | 'archiving' | 'archived';
+
+export type Depth = 'quick' | 'standard' | 'deep';
+export const DEPTHS: readonly Depth[] = ['quick', 'standard', 'deep'];
+
+/** The research brief sent with plan/start and stored with the project. */
+export interface Brief {
+  depth?: Depth;
+  audience?: string;
+  startDate?: string;
+  includeDomains?: string[];
+  excludeDomains?: string[];
+  notes?: string;
+}
 
 export interface ProjectStats {
   findings: number;
@@ -198,6 +215,15 @@ export interface Project {
   findingCount?: number;
   stats?: ProjectStats;
   message?: string;
+  /** 1 for the first run, +1 per incremental run. */
+  version?: number;
+  /** Incremental runs search from this date (YYYY-MM-DD). */
+  since?: string;
+  completedAt?: string;
+  stoppedAt?: string;
+  brief?: Brief;
+  /** The owner asked for an email when the run ends. */
+  notify?: boolean;
 }
 
 export interface SubQuestion {
@@ -206,6 +232,47 @@ export interface SubQuestion {
   dataShape: DataShape;
   /** 1 for the first plan; 2 for follow-up questions added after the supervisor's review. */
   round?: number;
+  /** The run this sub-question belongs to (incremental runs). */
+  version?: number;
+  /** Incremental runs: the earlier findingId this sub-question re-researches. */
+  updates?: string;
+}
+
+/** A plan waiting for the user's approval (draft project). */
+export interface ProposedPlan {
+  subQuestions: SubQuestion[];
+  requirements: Requirement[];
+  brief?: Brief;
+  by?: 'agent' | 'user';
+  updatedAt?: string;
+}
+
+export type SteerKind = 'redirect' | 'finish';
+export interface Steer {
+  steerId: string;
+  kind: SteerKind;
+  text: string;
+  createdAt: string;
+  /** The round that applied it (redirects). */
+  appliedRound?: number;
+}
+
+/** A follow-up question about the report and its answer. */
+export interface QA {
+  qaId: string;
+  question: string;
+  selection?: string;
+  answer: string;
+  citations: Record<string, CitationRef>;
+  needsResearch: boolean;
+  researchQuestion?: string;
+  createdAt: string;
+}
+
+export interface ReportVersion {
+  version: number;
+  createdAt?: string;
+  report: string;
 }
 
 /** `[C3]` in the report → the claim it cites. */
@@ -240,6 +307,9 @@ export interface Synthesis {
   createdAt?: string;
   citations?: Record<string, CitationRef>;
   verification?: Verification | null;
+  version?: number;
+  /** Incremental runs: how many claims are new and how many replaced earlier ones. */
+  changes?: { newClaims?: number; updatedClaims?: number };
 }
 
 /* Live progress (published by the research runtime, not persisted) */
@@ -275,8 +345,16 @@ interface EventBase<T extends string, D> {
   data: D;
 }
 
-export type ProjectCreatedEvent = EventBase<'project.created', { topic: string; parentProjectId: string | null }>;
-export type PlanReadyEvent = EventBase<'plan.ready', { subQuestions: SubQuestion[]; requirements?: Requirement[] }>;
+export type ProjectCreatedEvent = EventBase<'project.created', { topic: string; parentProjectId: string | null; status?: 'draft' | 'running' }>;
+export type PlanReadyEvent = EventBase<'plan.ready', { subQuestions: SubQuestion[]; requirements?: Requirement[]; steerIds?: string[] }>;
+export type PlanProposedEvent = EventBase<'plan.proposed', ProposedPlan>;
+export type PlanFailedEvent = EventBase<'plan.failed', { message: string }>;
+export type ProjectStartedEvent = EventBase<'project.started', { version: number; mode: 'full' | 'incremental'; since: string | null }>;
+export type ProjectStoppedEvent = EventBase<'project.stopped', { stats: ProjectStats }>;
+export type SteerReceivedEvent = EventBase<'steer.received', { steer: Steer }>;
+export type ClaimsUpdatedEvent = EventBase<'claims.updated', { superseded: { claimId: string; findingId: string; supersededBy: string }[] }>;
+export type QaReadyEvent = EventBase<'qa.ready', { qa: QA }>;
+export type QaFailedEvent = EventBase<'qa.failed', { qaId: string; message: string }>;
 export type FindingReadyEvent = EventBase<'finding.ready', { finding: Finding }>;
 export type RelationAddedEvent = EventBase<'relation.added', { entities: Entity[]; edges: Edge[] }>;
 export type UiReadyEvent = EventBase<'ui.ready', { findingId: string; spec: UiSpec; cache: boolean }>;
@@ -308,7 +386,15 @@ export type ResearchEvent =
   | AgentStalledEvent
   | SynthesisDeltaEvent
   | SourceAddedEvent
-  | CoverageUpdatedEvent;
+  | CoverageUpdatedEvent
+  | PlanProposedEvent
+  | PlanFailedEvent
+  | ProjectStartedEvent
+  | ProjectStoppedEvent
+  | SteerReceivedEvent
+  | ClaimsUpdatedEvent
+  | QaReadyEvent
+  | QaFailedEvent;
 
 export type ResearchEventType = ResearchEvent['type'];
 
@@ -329,6 +415,14 @@ export const EVENT_TYPES: readonly ResearchEventType[] = [
   'synthesis.delta',
   'source.added',
   'coverage.updated',
+  'plan.proposed',
+  'plan.failed',
+  'project.started',
+  'project.stopped',
+  'steer.received',
+  'claims.updated',
+  'qa.ready',
+  'qa.failed',
 ];
 
 /* Tool results (project-tools) */
@@ -359,6 +453,12 @@ export interface ProjectGetResult {
   docs?: SourceDoc[];
   /** null until the first review. */
   coverage?: Coverage | null;
+  /** The plan a draft proposes (null otherwise). */
+  proposedPlan?: ProposedPlan | null;
+  /** Earlier versions of the report (incremental runs). */
+  history?: ReportVersion[];
+  steering?: Steer[];
+  qa?: QA[];
 }
 
 export interface ProjectRestartResult {
@@ -386,6 +486,8 @@ export interface AppConfig {
   eventsHttpEndpoint: string;
   agentsBaseUrl: string;
   toolsMcpUrl: string;
+  /** The deployment can email the owner when a run ends (project_notify). */
+  emailNotifications: boolean;
 }
 
 export const DEFAULT_TOPIC = '台灣半導體產業導入生成式 AI 的現況';

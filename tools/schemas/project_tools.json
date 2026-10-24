@@ -1,7 +1,7 @@
 [
   {
     "name": "project_save",
-    "description": "Create a project (status running) or update its status. status completed writes graph.json and manifest.json to S3.",
+    "description": "Create a project (status draft or running) or update its status. running on a draft starts it; running with reopen on a completed project starts an incremental run. status completed writes graph.json and manifest.json to S3. Returns the user's steering notes while running.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -11,7 +11,7 @@
         },
         "status": {
           "type": "string",
-          "description": "running | completed | failed"
+          "description": "draft | running | completed | failed"
         },
         "topic": {
           "type": "string"
@@ -25,6 +25,39 @@
         "runtimeSessionId": {
           "type": "string"
         },
+        "brief": {
+          "type": "object",
+          "description": "Research brief: depth (quick|standard|deep), audience, startDate (YYYY-MM-DD), includeDomains, excludeDomains, notes",
+          "properties": {
+            "depth": {
+              "type": "string"
+            },
+            "audience": {
+              "type": "string"
+            },
+            "startDate": {
+              "type": "string"
+            },
+            "includeDomains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "excludeDomains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
+        },
+        "reopen": {
+          "type": "boolean"
+        },
         "_caller": {
           "type": "string",
           "description": "Set by the gateway from the caller's token. Leave empty."
@@ -33,6 +66,58 @@
       "required": [
         "projectId",
         "status"
+      ]
+    }
+  },
+  {
+    "name": "project_steer",
+    "description": "Redirect a running project (kind redirect, with text) or ask it to wrap up with what it has (kind finish).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Project id, e.g. p-20261022-1a2b3c4d"
+        },
+        "kind": {
+          "type": "string",
+          "description": "redirect | finish"
+        },
+        "text": {
+          "type": "string"
+        },
+        "_caller": {
+          "type": "string",
+          "description": "Set by the gateway from the caller's token. Leave empty."
+        }
+      },
+      "required": [
+        "projectId",
+        "kind"
+      ]
+    }
+  },
+  {
+    "name": "project_notify",
+    "description": "Turn the end-of-run email on or off for a project.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Project id, e.g. p-20261022-1a2b3c4d"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "_caller": {
+          "type": "string",
+          "description": "Set by the gateway from the caller's token. Leave empty."
+        }
+      },
+      "required": [
+        "projectId",
+        "enabled"
       ]
     }
   },

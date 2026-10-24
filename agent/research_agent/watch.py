@@ -37,7 +37,7 @@ class WatchSettings:
     stall_sec: float = 120.0
     budget_sec: float = 600.0
     heartbeat_sec: float = 10.0
-    persist_sec: float = 30.0   # also how soon a stop made elsewhere is noticed
+    persist_sec: float = 15.0   # also how soon a stop or a steer made elsewhere is noticed
     tick_sec: float = 1.0
 
 

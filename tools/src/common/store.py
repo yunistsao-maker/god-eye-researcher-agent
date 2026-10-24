@@ -10,6 +10,10 @@ Table layout (PK / SK):
   PROJECT#{id}   DOC#{docId}              source document: canonical URL, publisher, date, score, fingerprints
                                           (its text is in S3 at projects/{id}/docs/{docId}.txt)
   PROJECT#{id}   COVERAGE                 requirement checklist status after each review
+  PROJECT#{id}   PROPOSED                 the plan a draft project proposes for review
+  PROJECT#{id}   SYNTHESIS                the current report; SYNTHESIS#V{nnn} keeps earlier versions
+  PROJECT#{id}   STEER#{ts}#{steerId}     the user's direction for a running project
+  PROJECT#{id}   QA#{ts}#{qaId}           a follow-up question about the report and its answer
   OWNER#{sub}    PROJECT#{createdAt}#{id} pointer for the user's project list
   TEMPLATE#{shape} V#1                    shared sub-UI template (never cleaned up)
 """

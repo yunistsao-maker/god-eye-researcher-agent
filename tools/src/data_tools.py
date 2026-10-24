@@ -1,4 +1,5 @@
-"""data-tools target: plan_save, finding_write, coverage_save, ui_template_get, ui_spec_write, synthesis_write.
+"""data-tools target: plan_propose, plan_save, finding_write, coverage_save, ui_template_get, ui_spec_write,
+synthesis_write, qa_write.
 
 Each write persists first, then publishes the matching AppSync event, so a subscriber that
 sees an event can always read the same data back with project_get. Writes to a stopped project
@@ -20,39 +21,94 @@ from typing import Any, Optional
 from botocore.exceptions import ClientError
 
 from common import appsync, sources, store
-from common.toolkit import FINDING_ID, ToolError, caller, dispatch, require_project_id, require_writable
-from common.validate import (DATA_SHAPES, canonicalize_entities, check_spec_fits, validate_claim_drafts, validate_coverage,
-                             validate_finding, validate_requirements, validate_spec)
+from common.toolkit import FINDING_ID, ToolError, caller, dispatch, require_owner, require_project_id, require_writable
+from common.validate import (CLAIM_ID, DATA_SHAPES, QA_ID, STEER_ID, canonicalize_entities, check_spec_fits, validate_brief,
+                             validate_claim_drafts, validate_coverage, validate_finding, validate_requirements, validate_spec)
 
-MAX_PLAN_ITEMS = 12
-MAX_ROUNDS = 4
+MAX_PLAN_ITEMS = 40      # all rounds and versions of a project
+MAX_PROPOSED = 12        # one proposed plan
+MAX_ROUNDS = 10
+MAX_VERSIONS = 50
+MAX_QA = 50
+
+
+def _int_in(v: Any, lo: int, hi: int) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi
+
+
+def _sub_questions(subs: Any, limit: int, extended: bool) -> list[dict]:
+    if not isinstance(subs, list) or not 1 <= len(subs) <= limit:
+        raise ToolError(f"subQuestions must be a list of 1-{limit} items")
+    clean = []
+    seen: set[str] = set()
+    for i, s in enumerate(subs):
+        if not isinstance(s, dict):
+            raise ToolError(f"subQuestions[{i}] must be an object")
+        fid, q, shape = s.get("findingId"), s.get("question"), s.get("dataShape")
+        if not (isinstance(fid, str) and FINDING_ID.match(fid)) or fid in seen:
+            raise ToolError(f"subQuestions[{i}].findingId must be unique and match {FINDING_ID.pattern}")
+        seen.add(fid)
+        if not (isinstance(q, str) and 3 <= len(q) <= 300):
+            raise ToolError(f"subQuestions[{i}].question must be 3-300 chars")
+        if shape not in DATA_SHAPES:
+            raise ToolError(f"subQuestions[{i}].dataShape must be one of {sorted(DATA_SHAPES)}")
+        item: dict[str, Any] = {"findingId": fid, "question": q, "dataShape": shape}
+        if extended:
+            if s.get("round") is not None:
+                if not _int_in(s["round"], 1, MAX_ROUNDS):
+                    raise ToolError(f"subQuestions[{i}].round must be 1-{MAX_ROUNDS}")
+                item["round"] = s["round"]
+            if s.get("version") is not None:
+                if not _int_in(s["version"], 1, MAX_VERSIONS):
+                    raise ToolError(f"subQuestions[{i}].version must be 1-{MAX_VERSIONS}")
+                item["version"] = s["version"]
+            if s.get("updates") is not None:
+                if not (isinstance(s["updates"], str) and FINDING_ID.match(s["updates"])):
+                    raise ToolError(f"subQuestions[{i}].updates must be a findingId")
+                item["updates"] = s["updates"]
+        clean.append(item)
+    return clean
+
+
+def plan_propose(event: dict) -> dict:
+    """A plan for the user to review before the research starts (the project is a draft). The
+    planner proposes it (by: agent); the user's edits are saved the same way (by: user)."""
+    sub = caller(event)
+    pid = require_project_id(event)
+    meta = require_owner(pid, sub)
+    if meta.get("status") != "draft":
+        raise ToolError(f"Project {pid} is {meta.get('status')}; a plan can be proposed only for a draft")
+    clean = _sub_questions(event.get("subQuestions"), MAX_PROPOSED, extended=False)
+    reqs = event.get("requirements") or []
+    errors = validate_requirements(reqs)
+    if errors:
+        raise ToolError("; ".join(errors[:3]))
+    by = event.get("by", "agent")
+    if by not in ("agent", "user"):
+        raise ToolError("by must be agent or user")
+    record: dict[str, Any] = {"subQuestions": clean, "requirements": reqs, "by": by, "updatedAt": store.now_iso()}
+    brief = event.get("brief")
+    if brief is not None:
+        errors = validate_brief(brief)
+        if errors:
+            raise ToolError("; ".join(errors[:3]))
+        store.table().update_item(Key={"PK": store.project_pk(pid), "SK": "META"}, UpdateExpression="SET brief = :b, updatedAt = :u",
+                                  ExpressionAttributeValues={":b": store.to_ddb(brief), ":u": store.now_iso()})
+    else:
+        brief = store.to_plain(meta.get("brief") or {})
+    store.table().put_item(Item={"PK": store.project_pk(pid), "SK": "PROPOSED", **store.to_ddb(record)})
+    appsync.publish(pid, [("plan.proposed", {"subQuestions": clean, "requirements": reqs, "brief": brief, "by": by})])
+    return {"ok": True, "count": len(clean)}
 
 
 def plan_save(event: dict) -> dict:
     sub = caller(event)
     pid = require_project_id(event)
     require_writable(pid, sub)
-    subs = event.get("subQuestions")
-    if not isinstance(subs, list) or not 1 <= len(subs) <= MAX_PLAN_ITEMS:
-        raise ToolError(f"subQuestions must be a list of 1-{MAX_PLAN_ITEMS} items")
-    clean = []
-    for i, s in enumerate(subs):
-        if not isinstance(s, dict):
-            raise ToolError(f"subQuestions[{i}] must be an object")
-        fid, q, shape = s.get("findingId"), s.get("question"), s.get("dataShape")
-        if not (isinstance(fid, str) and FINDING_ID.match(fid)):
-            raise ToolError(f"subQuestions[{i}].findingId must match {FINDING_ID.pattern}")
-        if not (isinstance(q, str) and 3 <= len(q) <= 300):
-            raise ToolError(f"subQuestions[{i}].question must be 3-300 chars")
-        if shape not in DATA_SHAPES:
-            raise ToolError(f"subQuestions[{i}].dataShape must be one of {sorted(DATA_SHAPES)}")
-        item = {"findingId": fid, "question": q, "dataShape": shape}
-        rnd = s.get("round")
-        if rnd is not None:
-            if not (isinstance(rnd, int) and not isinstance(rnd, bool) and 1 <= rnd <= MAX_ROUNDS):
-                raise ToolError(f"subQuestions[{i}].round must be 1-{MAX_ROUNDS}")
-            item["round"] = rnd
-        clean.append(item)
+    clean = _sub_questions(event.get("subQuestions"), MAX_PLAN_ITEMS, extended=True)
+    steer_ids = event.get("steerIds") or []
+    if not (isinstance(steer_ids, list) and len(steer_ids) <= 10 and all(isinstance(x, str) and STEER_ID.match(x) for x in steer_ids)):
+        raise ToolError("steerIds must be a list of at most 10 steer ids")
     item: dict[str, Any] = {"PK": store.project_pk(pid), "SK": "PLAN", "subQuestions": clean, "updatedAt": store.now_iso()}
     data: dict[str, Any] = {"subQuestions": clean}
     reqs = event.get("requirements")
@@ -66,6 +122,13 @@ def plan_save(event: dict) -> dict:
         if old.get("requirements"):
             item["requirements"] = data["requirements"] = store.to_plain(old["requirements"])
     store.table().put_item(Item=item)
+    if steer_ids:
+        rnd = max(int(q.get("round") or 1) for q in clean)
+        for steer in store.query_project(pid, "STEER#"):
+            if steer.get("steerId") in steer_ids:
+                store.table().update_item(Key={"PK": store.project_pk(pid), "SK": steer["SK"]}, UpdateExpression="SET appliedRound = :r",
+                                          ExpressionAttributeValues={":r": rnd})
+        data["steerIds"] = steer_ids
     appsync.publish(pid, [("plan.ready", data)])
     return {"ok": True, "count": len(clean)}
 
@@ -108,10 +171,56 @@ def _verify_claims(pid: str, fid: str, drafts: list[dict]) -> tuple[list[dict], 
         backers = {e["publisher"] for e in evidence if e["stance"] == "supports"}
         against = {e["publisher"] for e in evidence if e["stance"] == "contradicts"}
         status = "contested" if against else ("corroborated" if len(backers) >= 2 else "asserted")
-        claims.append({"claimId": f"c-{fid[2:]}-{len(claims) + 1}", "text": draft["text"].strip()[:500], "status": status,
-                       "independentSources": len(backers), "supporting": len(backers), "contradicting": len(against),
-                       "evidence": evidence})
+        claim = {"claimId": f"c-{fid[2:]}-{len(claims) + 1}", "text": draft["text"].strip()[:500], "status": status,
+                 "independentSources": len(backers), "supporting": len(backers), "contradicting": len(against),
+                 "evidence": evidence}
+        if draft.get("updates"):
+            claim["updates"] = draft["updates"]
+        claims.append(claim)
     return claims, problems, list(cited.values())
+
+
+def finding_of_claim(claim_id: str) -> str:
+    """c-3-2 -> f-3, c-abc-3-1 -> f-abc-3 (claim ids are c-{finding suffix}-{n})."""
+    return "f-" + claim_id[2:].rsplit("-", 1)[0]
+
+
+def _supersede(pid: str, fid: str, claims: list[dict], warnings: list[str]) -> list[dict]:
+    """An incremental run's claim that `updates` an earlier claim replaces it: the earlier claim is
+    marked superseded in its own finding. Unknown or invalid targets are dropped with a warning."""
+    by_finding: dict[str, list[dict]] = {}
+    for c in claims:
+        target = c.get("updates")
+        if not target:
+            continue
+        old_fid = finding_of_claim(target)
+        if not CLAIM_ID.match(target) or old_fid == fid or not FINDING_ID.match(old_fid):
+            c.pop("updates", None)
+            warnings.append(f"{c['claimId']}: updates must name a claim of an earlier finding")
+            continue
+        by_finding.setdefault(old_fid, []).append(c)
+    changed: list[dict] = []
+    tbl = store.table()
+    for old_fid, newer in by_finding.items():
+        item = tbl.get_item(Key={"PK": store.project_pk(pid), "SK": f"FINDING#{old_fid}"}).get("Item")
+        old = store.to_plain(item["finding"]) if item else None
+        known = {c["claimId"]: c for c in (old or {}).get("claims") or []}
+        touched = False
+        for c in newer:
+            target = known.get(c["updates"])
+            if target is None or target.get("status") == "superseded":
+                warnings.append(f"{c['claimId']}: {c['updates']} is not a current claim of {old_fid}")
+                c.pop("updates", None)
+                continue
+            target["status"] = "superseded"
+            target["supersededBy"] = c["claimId"]
+            changed.append({"claimId": target["claimId"], "findingId": old_fid, "supersededBy": c["claimId"]})
+            touched = True
+        if touched and old is not None:
+            tbl.update_item(Key={"PK": store.project_pk(pid), "SK": f"FINDING#{old_fid}"}, UpdateExpression="SET finding = :f",
+                            ExpressionAttributeValues={":f": store.to_ddb(old)})
+            store.put_json(f"{store.project_prefix(pid)}findings/{old_fid}.json", old)
+    return changed
 
 
 def finding_write(event: dict) -> dict:
@@ -154,6 +263,13 @@ def finding_write(event: dict) -> dict:
     fid = finding["findingId"]
     pk = store.project_pk(pid)
     tbl = store.table()
+    superseded: list[dict] = []
+    if any(c.get("updates") for c in finding.get("claims") or []):
+        if tbl.get_item(Key={"PK": pk, "SK": f"FINDING#{fid}"}).get("Item") is None:  # a rewrite never supersedes twice
+            superseded = _supersede(pid, fid, finding["claims"], warnings)
+        else:
+            for c in finding["claims"]:
+                c.pop("updates", None)
     store.put_json(f"{store.project_prefix(pid)}findings/{fid}.json", finding)
     is_new = "Attributes" not in tbl.put_item(
         Item={"PK": pk, "SK": f"FINDING#{fid}", "finding": store.to_ddb(finding), "dataShape": finding["dataShape"], "createdAt": store.now_iso()},
@@ -184,10 +300,13 @@ def finding_write(event: dict) -> dict:
         tbl.update_item(Key={"PK": pk, "SK": "META"}, UpdateExpression="ADD findingCount :one SET updatedAt = :u",
                         ExpressionAttributeValues={":one": 1, ":u": store.now_iso()})
 
-    appsync.publish(pid, [
+    events: list[tuple[str, dict]] = [
         ("finding.ready", {"finding": finding}),
         ("relation.added", {"entities": finding["entities"], "edges": edges}),
-    ])
+    ]
+    if superseded:
+        events.append(("claims.updated", {"superseded": superseded}))
+    appsync.publish(pid, events)
     out: dict[str, Any] = {"ok": True, "findingId": fid, "edges": len(edges), "entities": [e["id"] for e in finding["entities"]]}
     if "claims" in finding:
         out["claims"] = finding["claims"]   # the verified form, so the caller can build on exactly what was stored
@@ -286,7 +405,7 @@ def synthesis_write(event: dict) -> dict:
     the runtime as synthesis.delta events; this is the durable copy that project_get returns."""
     sub = caller(event)
     pid = require_project_id(event)
-    require_writable(pid, sub)
+    meta = require_writable(pid, sub)
     report = event.get("report")
     if not (isinstance(report, str) and 1 <= len(report.strip()) <= 30_000):
         raise ToolError("report must be 1-30000 chars of Markdown")
@@ -299,11 +418,7 @@ def synthesis_write(event: dict) -> dict:
     }
     citations = event.get("citations")
     if citations is not None:
-        if not (isinstance(citations, dict) and len(citations) <= 300 and all(
-                isinstance(k, str) and CITATION.match(k) and isinstance(v, dict) and isinstance(v.get("claimId"), str)
-                and isinstance(v.get("findingId"), str) and FINDING_ID.match(v["findingId"]) for k, v in citations.items())):
-            raise ToolError("citations must map C1..C300 to {claimId, findingId}")
-        synthesis["citations"] = {k: {"claimId": v["claimId"], "findingId": v["findingId"]} for k, v in citations.items()}
+        synthesis["citations"] = _citations(citations)
     verification = event.get("verification")
     if verification is not None:
         if not isinstance(verification, dict):
@@ -326,16 +441,79 @@ def synthesis_write(event: dict) -> dict:
             raise ToolError("verification.deadUrls must be a list of URLs")
         clean["deadUrls"] = dead
         synthesis["verification"] = clean
+    version = int(meta.get("version") or 1)
+    synthesis["version"] = version
+    changes = event.get("changes")
+    if changes is not None:
+        if not (isinstance(changes, dict) and set(changes) <= {"newClaims", "updatedClaims"}
+                and all(_int_in(v, 0, 10_000) for v in changes.values())):
+            raise ToolError("changes must be {newClaims, updatedClaims} counts")
+        synthesis["changes"] = changes
+    tbl = store.table()
+    previous = tbl.get_item(Key={"PK": store.project_pk(pid), "SK": "SYNTHESIS"}).get("Item")
+    if previous and int(previous.get("version") or 1) != version:  # an incremental run keeps the earlier report
+        old = store.to_plain(previous)
+        old_version = int(old.get("version") or 1)
+        tbl.put_item(Item={"PK": store.project_pk(pid), "SK": f"SYNTHESIS#V{old_version:03d}",
+                           **store.to_ddb({k: old.get(k) for k in ("version", "createdAt", "report") if old.get(k) is not None}),
+                           "version": old_version})
+        store.s3_client().put_object(Bucket=store.bucket(), Key=f"{store.project_prefix(pid)}synthesis-v{old_version}.md",
+                                     Body=str(old.get("report", "")).encode("utf-8"), ContentType="text/markdown; charset=utf-8")
     store.s3_client().put_object(Bucket=store.bucket(), Key=f"{store.project_prefix(pid)}synthesis.md",
                                  Body=synthesis["report"].encode("utf-8"), ContentType="text/markdown; charset=utf-8")
     store.put_json(f"{store.project_prefix(pid)}synthesis.json", synthesis)
-    store.table().put_item(Item={"PK": store.project_pk(pid), "SK": "SYNTHESIS", **store.to_ddb(synthesis)})
+    tbl.put_item(Item={"PK": store.project_pk(pid), "SK": "SYNTHESIS", **store.to_ddb(synthesis)})
     appsync.publish(pid, [("synthesis.ready", {"synthesis": synthesis})])
     return {"ok": True}
 
 
-HANDLERS = {"plan_save": plan_save, "finding_write": finding_write, "coverage_save": coverage_save,
-            "ui_template_get": ui_template_get, "ui_spec_write": ui_spec_write, "synthesis_write": synthesis_write}
+def _citations(raw: Any) -> dict[str, dict]:
+    if not (isinstance(raw, dict) and len(raw) <= 300 and all(
+            isinstance(k, str) and CITATION.match(k) and isinstance(v, dict) and isinstance(v.get("claimId"), str)
+            and isinstance(v.get("findingId"), str) and FINDING_ID.match(v["findingId"]) for k, v in raw.items())):
+        raise ToolError("citations must map C1..C300 to {claimId, findingId}")
+    return {k: {"claimId": v["claimId"], "findingId": v["findingId"]} for k, v in raw.items()}
+
+
+def qa_write(event: dict) -> dict:
+    """Save an answer to a follow-up question about the report, then announce it."""
+    sub = caller(event)
+    pid = require_project_id(event)
+    require_writable(pid, sub)
+    qa_id, question, answer = event.get("qaId"), event.get("question"), event.get("answer")
+    if not (isinstance(qa_id, str) and QA_ID.match(qa_id)):
+        raise ToolError(f"qaId must match {QA_ID.pattern}")
+    if not (isinstance(question, str) and 2 <= len(question.strip()) <= 1000):
+        raise ToolError("question must be 2-1000 chars")
+    if not (isinstance(answer, str) and 1 <= len(answer.strip()) <= 20_000):
+        raise ToolError("answer must be 1-20000 chars of Markdown")
+    selection = event.get("selection")
+    if selection is not None and not (isinstance(selection, str) and len(selection) <= 2000):
+        raise ToolError("selection must be at most 2000 chars")
+    needs = event.get("needsResearch", False)
+    research_q = event.get("researchQuestion")
+    if not isinstance(needs, bool) or (research_q is not None and not (isinstance(research_q, str) and len(research_q) <= 300)):
+        raise ToolError("needsResearch must be a boolean and researchQuestion at most 300 chars")
+    existing = store.query_project(pid, "QA#")
+    if len(existing) >= MAX_QA and not any(q.get("qaId") == qa_id for q in existing):
+        raise ToolError(f"At most {MAX_QA} questions per project")
+    qa: dict[str, Any] = {"qaId": qa_id, "question": question.strip(), "answer": answer.strip(),
+                          "citations": _citations(event.get("citations") or {}), "needsResearch": needs, "createdAt": store.now_iso()}
+    if selection:
+        qa["selection"] = selection
+    if needs and research_q:
+        qa["researchQuestion"] = research_q.strip()
+    for old in existing:  # answering the same qaId again replaces it
+        if old.get("qaId") == qa_id:
+            store.table().delete_item(Key={"PK": store.project_pk(pid), "SK": old["SK"]})
+    store.table().put_item(Item={"PK": store.project_pk(pid), "SK": f"QA#{qa['createdAt']}#{qa_id}", **store.to_ddb(qa)})
+    appsync.publish(pid, [("qa.ready", {"qa": qa})])
+    return {"ok": True}
+
+
+HANDLERS = {"plan_propose": plan_propose, "plan_save": plan_save, "finding_write": finding_write, "coverage_save": coverage_save,
+            "ui_template_get": ui_template_get, "ui_spec_write": ui_spec_write, "synthesis_write": synthesis_write,
+            "qa_write": qa_write}
 
 
 def handler(event: dict, context: Any) -> dict:

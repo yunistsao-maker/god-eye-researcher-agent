@@ -549,3 +549,135 @@ export function generatedSpec(shape: DataShape): unknown {
       return { specVersion: 1, dataShape: shape, root: { component: 'RiskMatrix', props: { items: '$.keyPoints' } } };
   }
 }
+
+/* ---------------- incremental runs (增量重跑) ---------------- */
+
+/** What an incremental run finds for an earlier sub-question; subs without an entry find nothing new. */
+export interface MockUpdate {
+  n: number; // the original sub-question
+  summary: string;
+  source: { title: string; path: string };
+  claims: { text: string; quote: string; updates?: number /* claim index k of the original */ }[];
+}
+
+export const MOCK_UPDATES: MockUpdate[] = [
+  {
+    n: 1,
+    summary: '2026 年起，設備維修問答已從試行擴大到多數廠區，其他環節的階段沒有變化。（模擬）',
+    source: { title: '產業調查 2026 更新（模擬）', path: 'reports/semiconductor-genai-survey-2026' },
+    claims: [{ text: '設備維修問答已從試行擴大到多數廠區（2026）', quote: '設備維修問答已從試行擴大到多數廠區（2026）' }],
+  },
+  {
+    n: 3,
+    summary: '新的公開數據顯示，文件撰寫時間的下降幅度比先前的自評保守，約為 30%。（模擬）',
+    source: { title: '公會成效調查 2026（模擬）', path: 'surveys/genai-impact-2026' },
+    claims: [{ text: '公開數據顯示文件撰寫時間約下降 30%，比自評保守', quote: '公開數據顯示文件撰寫時間約下降 30%，比自評保守', updates: 0 }],
+  },
+];
+
+export const NO_NEW_DATA = '沒有找到上次之後的新資料，既有結論維持不變。（模擬）';
+
+/** The finding an incremental run writes for original sub-question `n`, as sub-question `newN`. */
+export function buildUpdateFinding(projectId: string, sub: MockSub, newN: number, since: string): Finding {
+  const findingId = findingIdFor(projectId, newN);
+  const upd = MOCK_UPDATES.find((u) => u.n === sub.n);
+  const f: Finding = {
+    findingId,
+    projectId,
+    question: sub.question,
+    summary: upd ? upd.summary : NO_NEW_DATA,
+    keyPoints: upd ? upd.claims.map((c) => c.text) : [],
+    entities: sub.entities.slice(0, 2).map(entity),
+    sources: [],
+    dataShape: 'list',
+    data: {},
+    confidence: upd ? 0.7 : 0.5,
+    claims: [],
+  };
+  if (!upd) return f;
+  const url = `https://example.com/${upd.source.path}`;
+  const doc: SourceDoc = {
+    docId: docIdFor(url),
+    url,
+    canonicalUrl: url,
+    title: upd.source.title,
+    publisher: 'example.com',
+    publishedDate: since,
+    sourceType: TYPE_BY_DIR[upd.source.path.split('/')[0]] ?? 'unknown',
+    score: 0.78,
+    duplicateOf: null,
+    via: 'direct',
+  };
+  f.sources = [{ title: doc.title, url }];
+  f.claims = upd.claims.map((c, k) => {
+    const claim: Claim = {
+      claimId: claimIdFor(projectId, newN, k),
+      text: c.text,
+      status: 'asserted',
+      independentSources: 1,
+      supporting: 1,
+      contradicting: 0,
+      evidence: [evidence(doc, c.quote, 'supports', [doc])],
+    };
+    if (c.updates !== undefined) claim.updates = claimIdFor(projectId, sub.n, c.updates);
+    return claim;
+  });
+  return f;
+}
+
+export function updateDocs(since: string): SourceDoc[] {
+  return MOCK_UPDATES.map((u) => {
+    const url = `https://example.com/${u.source.path}`;
+    return {
+      docId: docIdFor(url), url, canonicalUrl: url, title: u.source.title, publisher: 'example.com', publishedDate: since,
+      sourceType: TYPE_BY_DIR[u.source.path.split('/')[0]] ?? 'unknown', score: 0.78, duplicateOf: null, via: 'direct',
+    };
+  });
+}
+
+/**
+ * The report of an incremental run: the earlier report with a 本次更新 section, citing the new claims.
+ * `newIds` are the claim ids the run wrote, `replaced` maps an old claim id to the claim that replaced it.
+ */
+export function buildSynthesisVersion(projectId: string, version: number, createdAt: string, newIds: string[], replaced: Record<string, string>): Synthesis {
+  const base = buildSynthesis(projectId, createdAt);
+  const citations: Record<string, CitationRef> = {};
+  for (const [label, ref] of Object.entries(base.citations ?? {})) {
+    citations[label] = replaced[ref.claimId] ? { claimId: replaced[ref.claimId], findingId: 'f-' + replaced[ref.claimId].slice(2).replace(/-\d+$/, '') } : ref;
+  }
+  let n = Object.keys(citations).length;
+  const labels = newIds.map((id) => {
+    const existing = Object.entries(citations).find(([, r]) => r.claimId === id);
+    if (existing) return existing[0];
+    n += 1;
+    citations[`C${n}`] = { claimId: id, findingId: 'f-' + id.slice(2).replace(/-\d+$/, '') };
+    return `C${n}`;
+  });
+  const update = [
+    '## 本次更新',
+    '',
+    ...MOCK_UPDATES.flatMap((u, i) => (labels[i] ? [`- ${u.claims[0].text} [${labels[i]}]。`] : [])),
+    '',
+  ].join('\n');
+  const report = base.report.replace('## 主要發現', update + '\n## 主要發現');
+  return { ...base, report, citations, version, changes: { newClaims: newIds.length - Object.keys(replaced).length, updatedClaims: Object.keys(replaced).length } };
+}
+
+/** A canned answer to a follow-up question: cites the first claims the report cites, or asks for research. */
+export function mockAnswer(question: string, synthesis: Synthesis | null): { answer: string; citations: Record<string, CitationRef>; needsResearch: boolean; researchQuestion?: string } {
+  const outside = /日本|韓國|中國|美國|歐洲|補搜|新資料|202[7-9]|Japan|Korea/i.test(question);
+  if (outside || !synthesis?.citations) {
+    return {
+      answer: '目前查證過的主張沒有涵蓋這個問題，所以不回答以免猜測。可以用增量重跑補搜這部分的資料。（模擬回答）',
+      citations: {},
+      needsResearch: true,
+      researchQuestion: question.replace(/[？?]$/, '').slice(0, 120),
+    };
+  }
+  const labels = Object.keys(synthesis.citations).slice(0, 2);
+  return {
+    answer: `報告裡和這個問題最相關的是兩點：先從工程知識檢索起步 [${labels[0]}]，而且決策仍由工程師負責 [${labels[1] ?? labels[0]}]。這兩點都有來源支持，但都是製造業的案例，其他產業不一定適用。（模擬回答）`,
+    citations: Object.fromEntries(labels.map((l) => [l, synthesis.citations![l]])),
+    needsResearch: false,
+  };
+}

@@ -37,6 +37,7 @@ const cfg: AppConfig = {
   eventsHttpEndpoint: 'https://abc.appsync-api.us-west-2.amazonaws.com/event',
   agentsBaseUrl: 'https://agents.example.com/',
   toolsMcpUrl: 'https://tools.example.com/mcp',
+  emailNotifications: false,
 };
 
 interface Call {

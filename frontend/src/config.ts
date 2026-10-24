@@ -8,6 +8,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   eventsHttpEndpoint: '',
   agentsBaseUrl: '',
   toolsMcpUrl: '/mcp',
+  emailNotifications: false,
 };
 
 const str = (v: unknown, fallback: string) => (typeof v === 'string' ? v.trim() : fallback);
@@ -22,6 +23,8 @@ export function normalizeConfig(raw: unknown): AppConfig {
     eventsHttpEndpoint: str(r.eventsHttpEndpoint, ''),
     agentsBaseUrl: str(r.agentsBaseUrl, ''),
     toolsMcpUrl: str(r.toolsMcpUrl, DEFAULT_CONFIG.toolsMcpUrl) || DEFAULT_CONFIG.toolsMcpUrl,
+    // Mock mode simulates the email switch.
+    emailNotifications: r.emailNotifications === true || r.mode !== 'live',
   };
 }
 

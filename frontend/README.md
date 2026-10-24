@@ -1,13 +1,34 @@
 # God Eye Researcher: frontend
 
-React research console. Agents research a topic in parallel, and the results stream into the UI as AppSync
-events (see `../contracts/events.md`). Each finding first shows as a generic card. When its sub-UI spec
+The research workspace: five screens that take a question from a plan you approve, through a live run
+you can steer, to a report where every sentence leads back to its sources. Results stream in as AppSync
+events (see `../contracts/events.md`). Each finding first shows as a generic card; when its sub-UI spec
 arrives, the card swaps to one of four whitelisted components: `Compare`, `Timeline`, `MetricBars` or
-`KeyPoints`. If you are hovering over the card or have focus inside it, the swap waits and a swap bar
-appears instead.
+`KeyPoints` (the swap waits while you hover over or focus inside the card).
 
 Stack: Vite 5.4, React 18.3, TypeScript 5.6 (strict), aws-amplify 6, @aws-amplify/ui-react 6, plain CSS.
-There are no UI or graph libraries; the relationship graph is a small force simulation drawn in SVG.
+There are no UI, router or graph libraries; routes are hash routes and the graphs are SVG.
+
+## Screens and routes
+
+Hash routes, so every screen has a link that survives a reload and works from a static S3/CloudFront
+origin (`src/router.ts`):
+
+| route | screen | what it does |
+| --- | --- | --- |
+| `#/new`, `#/new?from={id}` | 新研究與計畫 (`screens/Compose.tsx`) | The question, three quick choices (reader, time range, aspects to cover), depth (with what each depth means), preferred and excluded domains, other notes. 「產生計畫」 asks the supervisor for a plan; the plan panel lets you rewrite, reorder, delete and add sub-questions and pick each one's presentation, shows the estimated sources and time, and offers the end-of-run email. If the question or settings change after the plan was made, it says so and offers to redo it. `?from=` re-researches a stopped or failed project. |
+| `#/p/{id}/plan` | the same, for a draft | A draft (plan proposed, not started) reopens here with its saved plan. 「儲存計畫」 keeps your edits. |
+| `#/p/{id}/run` | 研究進行中 (`screens/Run.tsx`) | Left: sub-questions with their state and coverage squares. Middle: findings as they arrive (filters 全部 / 有爭議 / 待補證), each with its sub-UI, claims and an evidence-strength footer; 改方向 (sticky while running). Right: counters (pages read, kept as evidence, syndicated copies merged, down-weighted sources) and the activity timeline. The header shows 第 n 步，共 m 步，約剩 x 分鐘, 「停止並用目前結果寫報告」 and 「停止」 (both confirm first). |
+| `#/p/{id}/report` | 報告閱讀器 (`screens/Report.tsx`) | Table of contents with the evidence strength of each section; the executive summary with a strength mark per sentence; an evidence summary in the margin of every paragraph; numbered citation chips that open a citation card (the quote, a link that opens the page with the quote highlighted, the next source for the same claim); 「這一點來源說法不同」 boxes for contested claims; the sentence check; sources; earlier versions; follow-up questions. An answer that needs new data offers an incremental re-run for it. |
+| `#/p/{id}/evidence` | 證據台 (`screens/EvidenceDesk.tsx`) | Tabs 主張 / 衝突 / 主題地圖 / 來源 and a search box. 主張 is a sortable table filtered by status, sub-question, source type and year, exportable as CSV; selecting a row shows the claim's neighbourhood (publishers and entities), its quotes and a link to its finding. 需要你判斷 lists contested claims and claims superseded by newer evidence. Selection, tab and search are in the URL (`?claim=…&tab=…&q=…`). |
+| `#/library` | 專案庫 (`screens/Library.tsx`) | All projects by status (全部 / 進行中 / 草稿 / 已完成 / 需要更新 / 已停止或失敗). Completed reports older than 30 days are marked and offer 增量重跑; drafts continue planning; stopped or failed projects can be re-researched; anything not running can be archived (the cleanup steps show inline). |
+
+`#/p/{id}` opens the view that fits the project's status. The top bar has 新研究, 證據台 (the open
+project's) and 專案庫; the project header has the tabs 進度 / 報告 / 證據台.
+
+Evidence strength is always a bar glyph plus a word, never colour alone (`components/Bars.tsx`): two blue
+bars = 已證實 (two or more independent publishers), blue and orange = 有爭議 (a contradicting quote), one
+hollow bar = 單一來源, struck through = 已被取代 (replaced by newer evidence in an incremental run).
 
 ## Mock mode (default, no AWS)
 
@@ -17,29 +38,31 @@ npm run dev          # http://localhost:5173
 ```
 
 `public/config.json` ships with `"mode": "mock"`. In this mode the whole backend runs in the browser
-(`src/lib/mock.ts`):
+(`src/lib/mock.ts`) and emits the same event objects as the contracts:
 
-- It emits the same event objects as the contracts, on the prototype's timing: the plan at about 1s, then
-  five findings between about 2.6s and 6.5s.
-- It simulates sub-UI generation, hits the template cache when a dataShape repeats, and sends one
-  `ui.failed`.
-- It sends live progress: `agent.activity` for every step (planning, searching with Chinese and English
-  queries, reading example.com / example.org pages, writing, designing, done), `agent.heartbeat` every 2 s,
-  and one `agent.stalled` (`retrying`) for one sub-agent, which then recovers. In a fresh run this is F4.
-- It simulates the evidence backbone: the plan carries five requirements, every page read is a
-  `source.added` (one of them a syndicated copy, marked `duplicateOf`), and every finding carries claims
-  built from its key points with the backend's status rules (two publishers = corroborated, a
-  contradicting quote = contested; F3 has one).
-- After round 1 the supervisor reviews (`coverage.updated`, round 1), adds two follow-up questions
-  (`plan.ready` again with `round: 2`), and when those are done sends the final coverage, streams a
-  simulated report that cites claims as `[C#]` (`synthesis.delta`, about 40 characters every 120 ms),
-  shows `verifying`, then `synthesis.ready` with `citations` and `verification`, and
-  `project.completed`. A full run takes about 19 s at 1×.
-- It answers the project tools (`project_list`, `project_get`, `project_restart`, `project_cleanup`,
-  `project_save`) from memory, starting with two seeded projects. The seeded semiconductor project
-  includes the round-2 findings and a `synthesis`, so the page opens with a report.
+- **Seeded projects.** A completed report (台灣半導體產業導入生成式 AI 的現況, with round-2 findings, a
+  report, a contested claim and the sentence check), a completed report from August (older than 30 days,
+  so the library suggests a re-run) and a draft with a proposed plan.
+- **Plan review.** 產生計畫 creates a draft and sends `plan.proposed` after about 1.4 s (three
+  sub-questions at 快速 depth, five otherwise). A question that contains 「失敗」 sends `plan.failed`
+  instead, so the error path is visible. The plan, findings and report are canned content about one
+  topic (generative AI in Taiwan's semiconductor industry), whatever question you type.
+- **The run.** 開始研究 researches the approved plan (the mock maps your sub-questions onto its canned
+  content, at most five): `agent.activity` for every step, `agent.heartbeat` every 2 s, one recovered
+  `agent.stalled`, `source.added` for every page (one syndicated copy), claims with the backend's status
+  rules, `coverage.updated` after each review, two round-2 questions, a streamed report
+  (`synthesis.delta`), `verifying`, `synthesis.ready` and `project.completed`. About 19 s at 1×.
+- **Steering.** 改方向 adds a round-2 sub-question for your text and marks the steer applied;
+  「停止並用目前結果寫報告」 skips the remaining questions and writes the report; 停止 stops without one.
+- **Follow-up questions.** Answers cite the report's claims; a question about something the claims do
+  not cover (for example one that asks to add a comparison) comes back with `needsResearch`.
+- **Incremental re-runs.** Version 2 re-asks every sub-question for newer data, supersedes one claim
+  (`claims.updated`), adds any extra questions, and writes a report with a 本次更新 section; version 1
+  moves to 較早的版本.
+- The project tools (`project_list`, `project_get`, `project_restart`, `project_cleanup`,
+  `project_save`, `project_stop`, `project_steer`, `project_notify`) answer from memory.
 
-The 1×/2× toggle sets the playback speed.
+The 1×/2× toggle sets the playback speed. Everything the mock produces is labelled 模擬.
 
 Other scripts:
 
@@ -89,43 +112,32 @@ How live mode talks to the backend (`src/lib/live.ts`):
 
 - **Events:** `events.connect('/research/' + projectId)` from `aws-amplify/data`, with Cognito
   user-pool auth. The app subscribes before it invokes research.
-- **Research:** `POST {agentsBaseUrl}/research/invocations` with `Authorization: Bearer <access token>`
-  and `X-Amzn-Bedrock-AgentCore-Runtime-Session-Id`. The body is
-  `{ action: 'start', projectId, topic, parentProjectId }`.
+- **Research runtime:** `POST {agentsBaseUrl}/research/invocations` with `Authorization: Bearer <access token>`
+  and `X-Amzn-Bedrock-AgentCore-Runtime-Session-Id`. The body is `{ action, projectId, … }` with
+  `action` one of `plan` (topic + brief), `start` (topic + brief + the approved `plan`, or
+  `mode: 'incremental'` + `extraQuestions`), `ask` (`qaId`, `question`, `selection`) and `stop`.
 - **Tools:** MCP over HTTP to `toolsMcpUrl`, in this order: `initialize`, then
   `notifications/initialized`, then `tools/call` with tool names like `project-tools___project_list`.
   The client keeps the `Mcp-Session-Id` header and reads both JSON and SSE responses.
 
-## Live progress and the report
-
-The research runtime publishes events that are not persisted (see `../contracts/events.md`). The UI
-uses them as follows:
+## Events on screen
 
 | event | shown as |
 | --- | --- |
-| `agent.activity` | A one-line status under each researching plan row and card, such as 「搜尋：…」, 「閱讀：example.com/…」, 「思考中…」, 「寫入 finding」 or 「設計 sub-UI」, plus how long ago. The supervisor's step appears at the top of 研究計畫. Its `waiting` phase reads 「等待 sub-agent 完成」, or the event's detail, and shows no idle time. |
-| `agent.heartbeat` | Refreshes each listed agent's idle time and the run's liveness. |
-| `agent.stalled` | 「停滯 n 秒，重新嘗試中」 or 「停滯，已放棄」 in the warning colour. The agent's next `agent.activity` clears it. |
-| `plan.ready` (`round: 2`) | New questions are added as new rows and cards with a 「補充研究」 chip. Existing cards stay as they are. |
-| `synthesis.delta` | The 綜合報告 section renders the markdown as it streams, with a caret at the end. Chunks are applied in `seq` order: out-of-order chunks wait in a buffer and duplicates are dropped. |
-| `synthesis.ready` | Replaces the streamed text with the final report and lists 矛盾, 缺口 and 後續問題. `project_get` restores it through `synthesis`. |
-| `source.added` | Adds the page to the 來源 panel (once per `docId`). |
-| `coverage.updated` | Updates the 需求涵蓋 checklist under 研究計畫. |
-
-The event log records searches, reads, supervisor steps, stalls and the first report chunk. It does not
-record every thinking step, heartbeat or chunk.
-
-### Evidence
-
-| where | shows |
-| --- | --- |
-| Finding card | 查證過的主張 replaces the key points when the finding has `claims`. Each claim has a status mark (solid = 已佐證, half orange = 有爭議, hollow = 單一來源) and a label, never colour alone; expanding it lists the quotes with stance, publisher, source type and a 轉載 mark for duplicates. Quote links add a text fragment (`#:~:text=`), so browsers that support it scroll to and highlight the quote on the page. Under a sub-UI the claims are folded behind a summary line. |
-| 研究計畫 | 需求涵蓋: every requirement with 已涵蓋 / 證據薄弱 / 尚無資料 (or 待檢查 before the first review), the number of claims and the supervisor's note. |
-| 綜合報告 | A 逐句查核 line (cited sentences, supported, partly supported, revised, removed, uncited, citation precision before → after, dead links). `[C#]` markers are chips coloured by the claim's status; clicking one opens a panel with the claim and its quotes, sticky at the bottom of the report so it stays in view, with a button to scroll to the finding card. While the report streams, citations show as plain markers until `synthesis.ready` brings the citation map. |
-| 來源 | Sources, publishers and syndicated copies, counts by source type, then every page sorted by score (duplicates last) with publisher, type, date and score. |
-| Status bar | 來源 n · 主張 n（已佐證 n）. |
-
-Findings without claims (older projects, the legacy backend) render exactly as before.
+| `plan.proposed` / `plan.failed` | The plan panel of 新研究與計畫 fills in, or shows why there is no plan with 再試一次. |
+| `project.started` | The run screen starts its step count; an incremental run (`mode: 'incremental'`) moves the current report to 較早的版本. |
+| `agent.activity` | A status line under each researching sub-question and card (「搜尋：…」, 「閱讀：example.com/…」, 「寫入 finding」…) and a row in the activity timeline; the supervisor's step sits above the findings. |
+| `agent.heartbeat` | Refreshes the liveness indicator (「Agent 運作中 · n 秒前更新」). |
+| `agent.stalled` | 「停滯 n 秒，重新嘗試中」 or 「停滯，已放棄」 in the warning colour until the agent's next activity. |
+| `plan.ready` (`round: 2`, `steerIds`) | New sub-questions with a 補充研究 chip; a steer listed in `steerIds` becomes 「第 n 輪已套用」. |
+| `steer.received` | The steer appears under 改方向 (等待套用) and in the timeline. |
+| `finding.ready`, `ui.ready`, `ui.failed`, `relation.added` | Cards, sub-UIs, the coverage rail and the 主題地圖. |
+| `source.added` | Counters on the run screen and the 來源 lists (once per `docId`). |
+| `coverage.updated` | The coverage squares and the 涵蓋率 list. |
+| `claims.updated` | The replaced claims show as 已被取代 (kept, struck through) everywhere. |
+| `synthesis.delta` / `synthesis.ready` | The report streams in order of `seq`, then the final report with citations, the sentence check, contradictions, gaps and follow-up suggestions. |
+| `qa.ready` / `qa.failed` | The answer under 追問這份報告, or the error with the question kept. |
+| `project.completed` / `project.stopped` / `project.failed` | The status pill, a banner on the run screen and the library. |
 
 The report is rendered by a small in-house renderer (`src/lib/markdown.ts`). It supports `##` and `###`
 headings, paragraphs, `-` and `1.` lists, `**bold**`, `` `code` ``, links and `[C#]` claim citations (one
@@ -134,8 +146,8 @@ A link is rendered only if
 it uses http or https, and it opens with `rel="noopener noreferrer"`. Everything else, including raw
 HTML, is shown as text.
 
-**Liveness rule.** `liveness(state, now)` in `src/state.ts` returns one of these values. The status bar
-re-renders it every second.
+**Liveness rule.** `liveness(state, now)` in `src/state.ts` returns one of these values. The project
+header re-renders it every second.
 
 - `idle`: no project is running.
 - `alive`: the last sign of life was less than 15 s ago (「Agent 運作中 · n 秒前更新」).
@@ -167,6 +179,7 @@ rebuilding.
 | `eventsHttpEndpoint` | live | AppSync Events HTTP endpoint, `https://…/event` (required). |
 | `agentsBaseUrl` | live | Base URL of the agents gateway. The app calls `{agentsBaseUrl}/research/invocations`. Leave it empty to use the same origin, such as the dev proxy. |
 | `toolsMcpUrl` | live | MCP endpoint of the tools gateway. The default `/mcp` goes through the dev proxy. |
+| `emailNotifications` | live | `true` when the deployment can send the end-of-run email (`notifyFromEmail`); the web stack writes it. Without it the email option is hidden. Mock mode always offers it. |
 
 If live mode is selected but a required field is empty, the app shows a configuration message instead of
 the console.
@@ -174,23 +187,35 @@ the console.
 ## Layout
 
 ```
-public/config.json      runtime config
-src/types.ts            Finding, Claim, SourceDoc, Coverage, Entity, Edge, UiSpec, Project, ResearchEvent (discriminated union)
-src/state.ts            pure reducer reduce(state, event), hydrate(projectGetResult), UI actions, liveness(), claimIndex()
-src/lib/transport.ts    Transport interface
-src/lib/live.ts         Amplify + agents gateway + MCP tools gateway
-src/lib/mock.ts         in-browser simulation (+ mockData.ts)
-src/lib/mcp.ts          MCP JSON-RPC client (JSON and SSE bodies)
-src/lib/spec.ts         spec whitelist validation and "$.a.b" path resolution
-src/lib/events.ts       defensive event parsing (object, JSON string, Amplify envelope)
-src/lib/activity.ts     activity text (「搜尋：…」), URL shortening, "n 秒前"
-src/lib/markdown.ts     safe markdown subset for the report (parses to an AST, no HTML), [C#] citations
-src/lib/evidence.ts     claim labels and order, quote links with text fragments
-src/components/         TopBar, PlanList, FindingCard, SpecRenderer, Graph, EventLog, Projects, TemplateList,
-                        Activity (activity line, supervisor line, liveness indicator), Synthesis, Markdown, useNow,
-                        Evidence (claim list, quotes), Coverage (requirement checklist), Sources (source panel)
-src/styles.css          design tokens (light and dark) and styles ported from the prototype
+public/config.json        runtime config
+src/App.tsx               boot (config, Amplify, <Authenticator>), the workspace: transport, subscriptions,
+                          route-driven project loading, actions, top bar
+src/router.ts             hash routes: parseRoute, projectPath, navigate, useRoute
+src/workspace.ts          Actions and ScreenProps: what every screen gets
+src/screens/              Compose (新研究與計畫), Run (研究進行中), Report (報告閱讀器),
+                          EvidenceDesk (證據台), Library (專案庫)
+src/components/           ProjectHeader (status, steps, stop, tabs), Bars (evidence strength), Evidence (claims,
+                          quotes), Sources, SpecRenderer, Graph, Activity, Markdown, useNow
+src/types.ts              Project, Finding, Claim, SourceDoc, Coverage, Steer, QA, ResearchEvent (union) …
+src/state.ts              pure reducer reduce(state, event), hydrate(projectGetResult), UI actions, liveness(),
+                          claimIndex(), claimsOf() / currentClaims()
+src/lib/progress.ts       「第 n 步，共 m 步，約剩 x 分鐘」
+src/lib/transport.ts      Transport interface (subscribe, invoke, callTool)
+src/lib/live.ts           Amplify + agents gateway + MCP tools gateway
+src/lib/mock.ts           in-browser backend (+ mockData.ts)
+src/lib/mcp.ts            MCP JSON-RPC client (JSON and SSE bodies)
+src/lib/spec.ts           spec whitelist validation and "$.a.b" path resolution
+src/lib/events.ts         defensive event parsing (object, JSON string, Amplify envelope)
+src/lib/activity.ts       activity text, URL shortening, "n 秒前"
+src/lib/markdown.ts       safe markdown subset for the report (AST, no HTML), [C#] citations
+src/lib/evidence.ts       claim labels, strength, quote links with text fragments, dates
+src/styles.css            design tokens (light and dark) and all styles
 ```
+
+Tests: `state.test.ts` and `progress.test.ts` (reducer, live progress, liveness), `workflow.test.ts`
+(routes, step counting, plan review, steering, Q&A, incremental runs, and the same flow through the
+mock backend), `contract.test.ts` (replays the backend's fixtures from `../contracts/fixtures/`),
+`lib/*.test.ts`.
 
 ## Mock mode vs. the real backend
 

@@ -4,7 +4,7 @@
  * actions (log lines, view toggles, cleanup progress). No DOM, timers or randomness in here.
  * All times (`at`, `now`) are epoch milliseconds, so they compare with project.updatedAt.
  */
-import { activityLabel } from './lib/activity';
+import { activityLabel, shortUrl, truncate as truncateText } from './lib/activity';
 import { specProblem } from './lib/spec';
 import type {
   AgentPhase,
@@ -22,9 +22,13 @@ import type {
   ProjectGetResult,
   ProjectStats,
   ProjectStatus,
+  ProposedPlan,
+  QA,
+  ReportVersion,
   Requirement,
   ResearchEvent,
   SourceDoc,
+  Steer,
   StallAction,
   SubQuestion,
   Synthesis,
@@ -67,6 +71,12 @@ export interface FindingSlot {
   anim: number;
   /** Plan round: 1, or 2 for follow-up questions added after the review. */
   round: number;
+  /** The run (version) this sub-question belongs to; 1 unless an incremental run added it. */
+  version: number;
+  /** Incremental runs: the earlier sub-question this one re-researches. */
+  updates: string | null;
+  /** When finding.ready arrived (ms), for "n 分鐘前". */
+  readyAt: number | null;
 }
 
 export interface AgentStall {
@@ -121,6 +131,8 @@ export interface SynthesisState {
   /** `C3` → the claim it cites; empty while streaming and for reports without verified claims. */
   citations: Record<string, CitationRef>;
   verification: Verification | null;
+  version: number;
+  changes: { newClaims: number; updatedClaims: number } | null;
 }
 
 export interface GraphNode {
@@ -149,6 +161,24 @@ export const CLEANUP_STEPS = [
   '發佈 project.archived',
 ] as const;
 
+export type PlanningStatus = 'idle' | 'drafting' | 'ready' | 'failed';
+
+/** One line of the run screen's activity timeline. */
+export interface ActivityEntry {
+  id: number;
+  at: number;
+  text: string;
+  kind: 'search' | 'read' | 'source' | 'finding' | 'plan' | 'steer' | 'coverage' | 'report' | 'note';
+}
+
+export interface QaPending {
+  qaId: string;
+  question: string;
+  selection?: string;
+  at: number;
+  error?: string;
+}
+
 export interface ResearchState {
   project: OpenProject | null;
   notice: 'archived' | null;
@@ -174,6 +204,20 @@ export interface ResearchState {
   coverage: Coverage | null;
   /** Project documents in arrival order, one per docId (source.added / project_get). */
   docs: SourceDoc[];
+  /** The plan a draft proposes, waiting for the user's approval. */
+  proposal: ProposedPlan | null;
+  planning: { status: PlanningStatus; error: string | null };
+  /** The user's directions to the running project. */
+  steering: Steer[];
+  /** Answered follow-up questions, oldest first. */
+  qa: QA[];
+  /** Questions sent and not answered yet. */
+  qaPending: Record<string, QaPending>;
+  /** Earlier versions of the report, oldest first. */
+  history: ReportVersion[];
+  /** Readable activity timeline for the run screen, newest first. */
+  activity: ActivityEntry[];
+  activitySeq: number;
 }
 
 export const LOG_LIMIT = 200;
@@ -191,6 +235,8 @@ export function emptySynthesis(): SynthesisState {
     createdAt: null,
     citations: {},
     verification: null,
+    version: 1,
+    changes: null,
   };
 }
 
@@ -221,7 +267,28 @@ export function initialState(): ResearchState {
     requirements: [],
     coverage: null,
     docs: [],
+    ...emptyWorkflow(),
   };
+}
+
+function emptyWorkflow() {
+  return {
+    proposal: null,
+    planning: { status: 'idle' as PlanningStatus, error: null },
+    steering: [] as Steer[],
+    qa: [] as QA[],
+    qaPending: {} as Record<string, QaPending>,
+    history: [] as ReportVersion[],
+    activity: [] as ActivityEntry[],
+    activitySeq: 0,
+  };
+}
+
+export const ACTIVITY_LIMIT = 120;
+
+export function addActivity(state: ResearchState, kind: ActivityEntry['kind'], text: string, at: number): ResearchState {
+  const entry: ActivityEntry = { id: state.activitySeq + 1, at, text, kind };
+  return { ...state, activitySeq: entry.id, activity: [entry, ...state.activity].slice(0, ACTIVITY_LIMIT) };
 }
 
 /* ---------------- helpers ---------------- */
@@ -242,8 +309,12 @@ function emptyUi(): UiState {
   return { status: 'none', spec: null, reason: null, cache: false, pendingSwap: false };
 }
 
-function newSlot(findingId: string, question: string, dataShape: DataShape, round = 1): FindingSlot {
-  return { findingId, question, dataShape, status: 'researching', finding: null, ui: emptyUi(), view: 'auto', anim: 0, round };
+function newSlot(findingId: string, question: string, dataShape: DataShape, round = 1, version = 1, updates: string | null = null): FindingSlot {
+  return { findingId, question, dataShape, status: 'researching', finding: null, ui: emptyUi(), view: 'auto', anim: 0, round, version, updates, readyAt: null };
+}
+
+function asVersion(v: unknown): number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 1 ? v : 1;
 }
 
 function asShape(v: unknown): DataShape {
@@ -390,6 +461,7 @@ function closeOpenProject(state: ResearchState): ResearchState {
     requirements: [],
     coverage: null,
     docs: [],
+    ...emptyWorkflow(),
   };
 }
 
@@ -472,12 +544,90 @@ export function reduce(state: ResearchState, ev: ResearchEvent, env: ReduceEnv =
   switch (ev.type) {
     case 'project.created': {
       const s = addLog(state, 'ev', eventLogText(state, ev), at);
-      const project: OpenProject = { ...s.project!, topic: ev.data.topic || s.project!.topic, parentProjectId: ev.data.parentProjectId ?? null, status: 'running' };
+      const status: ProjectStatus = ev.data.status === 'draft' ? 'draft' : 'running';
+      const project: OpenProject = { ...s.project!, topic: ev.data.topic || s.project!.topic, parentProjectId: ev.data.parentProjectId ?? null, status };
       return {
         ...s,
         project,
-        projects: upsertProject(s.projects, { projectId: ev.projectId, topic: project.topic, parentProjectId: project.parentProjectId, status: 'running', findingCount: 0 }),
+        projects: upsertProject(s.projects, { projectId: ev.projectId, topic: project.topic, parentProjectId: project.parentProjectId, status, findingCount: 0 }),
       };
+    }
+
+    case 'plan.proposed': {
+      const proposal = readProposal(ev.data);
+      if (!proposal) return addLog(state, 'note', '收到格式不正確的 plan.proposed', at);
+      const s: ResearchState = { ...state, proposal, planning: { status: 'ready', error: null } };
+      return addLog(s, 'ev', `**plan.proposed** · ${proposal.subQuestions.length} 個子題 · ${proposal.by === 'user' ? '你的版本' : 'Supervisor 擬定'}`, at);
+    }
+
+    case 'plan.failed': {
+      const message = (typeof ev.data?.message === 'string' && ev.data.message) || '無法擬定計畫';
+      return addLog({ ...state, planning: { status: 'failed', error: message } }, 'ev', `**plan.failed** · ${message}`, at);
+    }
+
+    case 'project.started': {
+      const d = ev.data;
+      const version = asVersion(d?.version);
+      let s: ResearchState = {
+        ...state,
+        project: { ...state.project!, status: 'running', version, since: typeof d?.since === 'string' ? d.since : state.project!.since },
+        projects: upsertProject(state.projects, { projectId: ev.projectId, status: 'running', version }, false),
+      };
+      if (d?.mode === 'incremental') {
+        // The current report becomes history; the run writes the next version.
+        const syn = state.synthesis;
+        if (syn.status === 'ready' && !s.history.some((h) => h.version === version - 1)) {
+          s = { ...s, history: [...s.history, { version: version - 1, createdAt: syn.createdAt ?? undefined, report: syn.text }] };
+        }
+        s = { ...s, synthesis: emptySynthesis(), coverage: null };
+        s = addActivity(s, 'plan', `第 ${version} 版：只找 ${d.since ?? '上次之後'} 之後的新資料`, at);
+      }
+      return addLog(s, 'ev', `**project.started** · 第 ${version} 版${d?.mode === 'incremental' ? ' · 增量重跑' : ''}`, at);
+    }
+
+    case 'project.stopped': {
+      const s = addLog(state, 'ev', `**project.stopped** · ${ev.projectId}`, at);
+      const stats = ev.data?.stats;
+      const done = finishProject(s, 'stopped', { stats });
+      return { ...done, projects: upsertProject(done.projects, { projectId: ev.projectId, status: 'stopped', stats }) };
+    }
+
+    case 'steer.received': {
+      const st = readSteer(ev.data?.steer);
+      if (!st) return state;
+      const steering = state.steering.some((x) => x.steerId === st.steerId)
+        ? state.steering.map((x) => (x.steerId === st.steerId ? { ...x, ...st } : x))
+        : [...state.steering, st];
+      const s = addActivity({ ...state, steering }, 'steer', st.kind === 'finish' ? '你要求用目前結果收尾' : `收到新方向：${st.text}`, at);
+      return addLog(s, 'ev', `**steer.received** · ${st.kind === 'finish' ? '提早收尾' : st.text}`, at);
+    }
+
+    case 'claims.updated': {
+      const list = Array.isArray(ev.data?.superseded) ? ev.data.superseded : [];
+      let slots = state.slots;
+      for (const u of list) {
+        const slot = slots[u?.findingId];
+        if (!slot?.finding?.claims) continue;
+        const claims = slot.finding.claims.map((c) => (c.claimId === u.claimId ? { ...c, status: 'superseded' as const, supersededBy: u.supersededBy } : c));
+        slots = { ...slots, [u.findingId]: { ...slot, finding: { ...slot.finding, claims } } };
+      }
+      const s = addActivity({ ...state, slots }, 'finding', `${list.length} 個主張被較新的證據取代`, at);
+      return addLog(s, 'ev', `**claims.updated** · 取代 ${list.length} 個主張`, at);
+    }
+
+    case 'qa.ready': {
+      const qa = readQa(ev.data?.qa);
+      if (!qa) return state;
+      const { [qa.qaId]: _done, ...pending } = state.qaPending;
+      const list = state.qa.some((x) => x.qaId === qa.qaId) ? state.qa.map((x) => (x.qaId === qa.qaId ? qa : x)) : [...state.qa, qa];
+      return addLog({ ...state, qa: list, qaPending: pending }, 'ev', `**qa.ready** · ${truncateText(qa.question, 40)}`, at);
+    }
+
+    case 'qa.failed': {
+      const id = ev.data?.qaId;
+      const prev = typeof id === 'string' ? state.qaPending[id] : undefined;
+      if (!prev) return state;
+      return { ...state, qaPending: { ...state.qaPending, [id]: { ...prev, error: ev.data.message || '無法回答' } } };
     }
 
     case 'plan.ready': {
@@ -494,14 +644,22 @@ export function reduce(state: ResearchState, ev: ResearchEvent, env: ReduceEnv =
       for (const q of plan) {
         const prev = slots[q.findingId];
         const round = asRound(q.round) ?? prev?.round ?? 1;
-        if (!prev) slots[q.findingId] = newSlot(q.findingId, q.question, asShape(q.dataShape), round);
+        if (!prev) slots[q.findingId] = newSlot(q.findingId, q.question, asShape(q.dataShape), round, asVersion(q.version), q.updates ?? null);
         else if (prev.finding) slots[q.findingId] = prev.round === round ? prev : { ...prev, round }; // never disturb a finished card
         else slots[q.findingId] = { ...prev, question: q.question || prev.question, dataShape: asShape(q.dataShape), round };
       }
       const order = [...plan.map((q) => q.findingId), ...state.order.filter((id) => !plan.some((q) => q.findingId === id))];
       const requirements = readRequirements(ev.data.requirements);
-      const s: ResearchState = { ...state, plan, slots, order, requirements: requirements.length ? requirements : state.requirements };
+      const steerIds = strings(ev.data.steerIds);
+      const maxRound = Math.max(1, ...plan.map((q) => asRound(q.round) ?? 1));
+      const steering = steerIds.length
+        ? state.steering.map((st) => (steerIds.includes(st.steerId) ? { ...st, appliedRound: st.appliedRound ?? maxRound } : st))
+        : state.steering;
+      let s: ResearchState = { ...state, plan, slots, order, steering, requirements: requirements.length ? requirements : state.requirements };
       const added = plan.filter((q) => !known.has(q.findingId));
+      if (state.plan && added.length) {
+        for (const q of added) s = addActivity(s, 'plan', (q.version ?? 1) > 1 ? `重新研究「${truncateText(q.question, 40)}」` : `新增子題「${truncateText(q.question, 40)}」`, at);
+      }
       const round = Math.max(1, ...plan.map((q) => asRound(q.round) ?? 1));
       const text =
         state.plan && round >= 2
@@ -529,8 +687,12 @@ export function reduce(state: ResearchState, ev: ResearchEvent, env: ReduceEnv =
         finding: f,
         ui,
         anim: prev.anim + 1,
+        readyAt: at,
       };
       let s = putSlot(state, slot);
+      const claims = claimsOf(f);
+      const contested = claims.filter((c) => c.status === 'contested').length;
+      s = addActivity(s, 'finding', `${findingLabel(s, f.findingId)}：抽出 ${claims.length} 個主張${contested ? `，其中 ${contested} 個有反對證據` : ''}`, at);
       s = withEntities(s, f.entities);
       s = withFindingNode(s, f.findingId);
       return addLog(s, 'ev', eventLogText(s, ev), at);
@@ -643,7 +805,8 @@ export function reduce(state: ResearchState, ev: ResearchEvent, env: ReduceEnv =
       const s = { ...state, docs };
       if (known) return s;
       const dup = doc.duplicateOf ? ' · 轉載，與既有來源重複' : '';
-      return addLog(s, 'ev', `**source.added** · ${doc.publisher || doc.url} · ${sourceTypeLabel(doc.sourceType)}${dup}`, at);
+      const s2 = addActivity(s, 'source', doc.duplicateOf ? `「${truncateText(doc.title, 30)}」是轉載，合併為同一個來源` : `保存來源「${truncateText(doc.title, 36)}」`, at);
+      return addLog(s2, 'ev', `**source.added** · ${doc.publisher || doc.url} · ${sourceTypeLabel(doc.sourceType)}${dup}`, at);
     }
 
     case 'coverage.updated': {
@@ -651,7 +814,8 @@ export function reduce(state: ResearchState, ev: ResearchEvent, env: ReduceEnv =
       if (!coverage) return addLog(state, 'note', '收到格式不正確的 coverage.updated', at);
       const s = { ...state, coverage };
       const n = coverageCounts(coverage.requirements);
-      return addLog(s, 'ev', `**coverage.updated** · 第 ${coverage.round} 輪 · 已涵蓋 ${n.covered}/${coverage.requirements.length} · 薄弱 ${n.weak} · 缺少 ${n.missing}`, at);
+      const s2 = addActivity(s, 'coverage', `檢查涵蓋率：${n.covered}/${coverage.requirements.length} 個重點已有證據`, at);
+      return addLog(s2, 'ev', `**coverage.updated** · 第 ${coverage.round} 輪 · 已涵蓋 ${n.covered}/${coverage.requirements.length} · 薄弱 ${n.weak} · 缺少 ${n.missing}`, at);
     }
 
     default:
@@ -694,6 +858,8 @@ function onActivity(state: ResearchState, d: { agentId: string; phase: AgentPhas
   // The log keeps the useful steps only: searches, reads, supervisor milestones, failures and recoveries.
   const supervisorStep = d.agentId === 'supervisor' && phase !== 'thinking' && phase !== 'done';
   if (clears) return addLog(s, 'ev', `**agent.activity** · ${label} · 恢復 · ${text}`, at);
+  if (phase === 'searching' && detail) return addLog(addActivity(s, 'search', `${label} 搜尋「${truncateText(detail, 60)}」`, at), 'ev', `**agent.activity** · ${label} · ${text}`, at);
+  if (phase === 'reading' && detail) return addLog(addActivity(s, 'read', `${label} 閱讀 ${shortUrl(detail, 44)}`, at), 'ev', `**agent.activity** · ${label} · ${text}`, at);
   if (phase === 'searching' || phase === 'reading' || phase === 'failed' || supervisorStep) return addLog(s, 'ev', `**agent.activity** · ${label} · ${text}`, at);
   return s;
 }
@@ -765,6 +931,8 @@ function readySynthesis(raw: unknown): SynthesisState | null {
     createdAt: typeof v.createdAt === 'string' ? v.createdAt : null,
     citations: readCitations(v.citations),
     verification: readVerification(v.verification),
+    version: asVersion(v.version),
+    changes: isObj(v.changes) ? { newClaims: num(v.changes.newClaims) ?? 0, updatedClaims: num(v.changes.updatedClaims) ?? 0 } : null,
   };
 }
 
@@ -792,6 +960,48 @@ function str(v: unknown): string | null {
 
 function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+function readProposal(raw: unknown): ProposedPlan | null {
+  if (!isObj(raw) || !Array.isArray(raw.subQuestions)) return null;
+  const subQuestions = raw.subQuestions
+    .filter((q): q is SubQuestion => isObj(q) && typeof q.findingId === 'string' && typeof q.question === 'string')
+    .map((q) => ({ findingId: q.findingId, question: q.question, dataShape: asShape(q.dataShape) }));
+  const out: ProposedPlan = { subQuestions, requirements: readRequirements(raw.requirements), by: raw.by === 'user' ? 'user' : 'agent' };
+  if (isObj(raw.brief)) out.brief = raw.brief as ProposedPlan['brief'];
+  if (typeof raw.updatedAt === 'string') out.updatedAt = raw.updatedAt;
+  return out;
+}
+
+function readSteer(raw: unknown): Steer | null {
+  if (!isObj(raw) || !str(raw.steerId) || (raw.kind !== 'redirect' && raw.kind !== 'finish')) return null;
+  const st: Steer = { steerId: raw.steerId as string, kind: raw.kind, text: typeof raw.text === 'string' ? raw.text : '', createdAt: str(raw.createdAt) ?? '' };
+  const round = asRound(raw.appliedRound);
+  if (round !== null) st.appliedRound = round;
+  return st;
+}
+
+function readQa(raw: unknown): QA | null {
+  if (!isObj(raw) || !str(raw.qaId) || typeof raw.question !== 'string' || typeof raw.answer !== 'string') return null;
+  const qa: QA = {
+    qaId: raw.qaId as string,
+    question: raw.question,
+    answer: raw.answer,
+    citations: readCitations(raw.citations),
+    needsResearch: raw.needsResearch === true,
+    createdAt: str(raw.createdAt) ?? '',
+  };
+  if (str(raw.selection)) qa.selection = raw.selection as string;
+  if (str(raw.researchQuestion)) qa.researchQuestion = raw.researchQuestion as string;
+  return qa;
+}
+
+function readHistory(raw: unknown): ReportVersion[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((h): h is ReportVersion => isObj(h) && typeof h.report === 'string')
+    .map((h) => ({ version: asVersion(h.version), createdAt: str(h.createdAt) ?? undefined, report: h.report }))
+    .sort((a, b) => a.version - b.version);
 }
 
 function readRequirements(raw: unknown): Requirement[] {
@@ -866,23 +1076,26 @@ export function coverageCounts(items: readonly CoverageItem[]): Record<CoverageS
   return n;
 }
 
-const CLAIM_STATUSES: readonly string[] = ['corroborated', 'asserted', 'contested'];
+const CLAIM_STATUSES: readonly string[] = ['corroborated', 'asserted', 'contested', 'superseded'];
 
 /**
- * The finding's well-formed claims (a finding written before the evidence backbone has none).
- * `superseded` claims (reserved in the schema for claims a later finding replaced) are left out;
- * any other unknown status is shown as single-source.
+ * The finding's well-formed claims (a finding written before the evidence backbone has none),
+ * including `superseded` ones an incremental run replaced. An unknown status shows as single-source.
  */
 export function claimsOf(f: Finding | null | undefined): Claim[] {
   if (!f || !Array.isArray(f.claims)) return [];
   const out: Claim[] = [];
   for (const c of f.claims as unknown[]) {
     if (!isObj(c) || typeof c.claimId !== 'string' || typeof c.text !== 'string' || !Array.isArray(c.evidence)) continue;
-    if (c.status === 'superseded') continue;
     const claim = c as unknown as Claim;
     out.push(CLAIM_STATUSES.includes(claim.status) ? claim : { ...claim, status: 'asserted' });
   }
   return out;
+}
+
+/** Claims that still stand (not replaced by newer evidence). */
+export function currentClaims(f: Finding | null | undefined): Claim[] {
+  return claimsOf(f).filter((c) => c.status !== 'superseded');
 }
 
 export interface ClaimRef {
@@ -908,7 +1121,7 @@ export interface EvidenceStats {
 }
 
 export function evidenceStats(state: Pick<ResearchState, 'order' | 'slots' | 'docs'>): EvidenceStats {
-  const claims = state.order.flatMap((id) => claimsOf(state.slots[id]?.finding));
+  const claims = state.order.flatMap((id) => currentClaims(state.slots[id]?.finding));
   return {
     sources: state.docs.length,
     publishers: new Set(state.docs.map((d) => d.publisher).filter(Boolean)).size,
@@ -971,9 +1184,11 @@ export function hydrate(result: ProjectGetResult, base: ResearchState = initialS
     if (slots[id]) return;
     order.push(id);
     const f = byId.get(id) ?? null;
-    const slot = newSlot(id, f?.question || question, f ? asShape(f.dataShape) : shape, round);
+    const q = plan.find((x) => x.findingId === id);
+    const slot = newSlot(id, f?.question || question, f ? asShape(f.dataShape) : shape, round, asVersion(q?.version), q?.updates ?? null);
     slot.finding = f;
     slot.status = f ? 'ready' : running ? 'researching' : 'missing';
+    if (f) slot.readyAt = null;
     const rec = uiSpecs[id];
     if (rec) {
       const problem = specProblem(rec.spec, f ?? undefined);
@@ -1011,6 +1226,14 @@ export function hydrate(result: ProjectGetResult, base: ResearchState = initialS
     requirements: requirements.length ? requirements : same ? base.requirements : [],
     coverage: (result.coverage ? readCoverage(result.coverage) : null) ?? (same ? base.coverage : null),
     docs: same ? [...docs, ...base.docs.filter((d) => !docs.some((x) => x.docId === d.docId))] : docs,
+    proposal: readProposal(result.proposedPlan) ?? (same ? base.proposal : null),
+    planning: result.proposedPlan ? { status: 'ready', error: null } : same ? base.planning : { status: 'idle', error: null },
+    steering: (Array.isArray(result.steering) ? result.steering : []).map(readSteer).filter((x): x is Steer => x !== null),
+    qa: (Array.isArray(result.qa) ? result.qa : []).map(readQa).filter((x): x is QA => x !== null),
+    qaPending: same ? base.qaPending : {},
+    history: readHistory(result.history),
+    activity: same ? base.activity : [],
+    activitySeq: same ? base.activitySeq : 0,
   };
   s = withEntities(s, result.entities);
   for (const f of findings) s = withEntities(s, f.entities);
@@ -1027,6 +1250,15 @@ export type Action =
   | { kind: 'log'; logKind: LogKind; text: string; at: number }
   | { kind: 'run.start'; projectId: string; topic: string; parentProjectId: string | null; at: number; scale: number; keepLogAfter?: number }
   | { kind: 'run.error'; projectId: string; message: string; at: number }
+  /** A draft (plan review) or a fresh start opened in this tab: a new project, nothing researched yet. */
+  | { kind: 'planning.start'; projectId: string; topic: string; parentProjectId: string | null; at: number; brief?: OpenProject['brief'] }
+  | { kind: 'planning.redo'; at: number }
+  /** The open draft or completed project starts running (approved plan, incremental run). */
+  | { kind: 'run.begin'; projectId: string; at: number; scale: number }
+  | { kind: 'qa.ask'; qaId: string; question: string; selection?: string; at: number }
+  | { kind: 'qa.error'; qaId: string; message: string }
+  | { kind: 'steer.local'; steer: Steer; at: number }
+  | { kind: 'project.patch'; projectId: string; patch: Partial<OpenProject> }
   | { kind: 'hydrate'; result: ProjectGetResult; at?: number }
   | { kind: 'view.toggle'; findingId: string }
   | { kind: 'swap.apply'; findingId: string }
@@ -1069,6 +1301,48 @@ export function update(state: ResearchState, action: Action): ResearchState {
         clock: { startedAt: action.at, scale: action.scale, running: true },
         live: { ...emptyLive(), startedAt: action.at },
       };
+    }
+    case 'planning.start': {
+      const project: OpenProject = { projectId: action.projectId, topic: action.topic, status: 'draft', parentProjectId: action.parentProjectId };
+      if (action.brief) project.brief = action.brief;
+      return {
+        ...initialState(),
+        project,
+        templates: state.templates,
+        projects: state.projects,
+        cleanup: state.cleanup,
+        log: state.log,
+        logSeq: state.logSeq,
+        clock: { ...state.clock, running: false, startedAt: null },
+        planning: { status: 'drafting', error: null },
+      };
+    }
+    case 'planning.redo':
+      return { ...state, planning: { status: 'drafting', error: null } };
+    case 'run.begin': {
+      if (!state.project || state.project.projectId !== action.projectId) return state;
+      return {
+        ...state,
+        project: { ...state.project, status: 'running' },
+        clock: { startedAt: action.at, scale: action.scale, running: true },
+        live: { ...emptyLive(), startedAt: action.at },
+      };
+    }
+    case 'qa.ask':
+      return { ...state, qaPending: { ...state.qaPending, [action.qaId]: { qaId: action.qaId, question: action.question, selection: action.selection, at: action.at } } };
+    case 'qa.error': {
+      const prev = state.qaPending[action.qaId];
+      return prev ? { ...state, qaPending: { ...state.qaPending, [action.qaId]: { ...prev, error: action.message } } } : state;
+    }
+    case 'project.patch': {
+      const projects = upsertProject(state.projects, { projectId: action.projectId, ...action.patch }, false);
+      if (state.project?.projectId !== action.projectId) return { ...state, projects };
+      return { ...state, projects, project: { ...state.project, ...action.patch } };
+    }
+    case 'steer.local': {
+      if (state.steering.some((x) => x.steerId === action.steer.steerId)) return state;
+      return addActivity({ ...state, steering: [...state.steering, action.steer] }, 'steer',
+        action.steer.kind === 'finish' ? '你要求用目前結果收尾' : `收到新方向：${action.steer.text}`, action.at);
     }
     case 'run.error': {
       if (!state.project || state.project.projectId !== action.projectId) return state;

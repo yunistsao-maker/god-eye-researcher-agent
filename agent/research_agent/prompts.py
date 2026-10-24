@@ -40,6 +40,20 @@ How to work:
 - Write in the same language as the question.
 - The expected dataShape is {shape}. {shape_hint}"""
 
+RESEARCHER_UPDATE = """This question was researched before. The claims already known are listed below with their ids.
+Look only for information published on or after {since}. For each new claim:
+- if it changes, corrects or replaces a known claim (a newer number, date or status), set `updates`
+  to that known claim's id;
+- if it adds something new, leave `updates` empty.
+Do not restate known claims that nothing new changes. If you find nothing newer, say so in the summary
+and return no claims.
+
+Known claims:
+{known}"""
+
+RESEARCHER_DIRECTION = """The user redirected the research while it was running. Keep this direction in mind:
+{direction}"""
+
 SHAPE_HINTS = {
     "comparison": "Fill `comparison` with a small table: columns are the attributes, rows are the items.",
     "timeline": "Fill `timeline` with dated items in chronological order.",
@@ -60,6 +74,32 @@ contradicts it).
 4. Follow-ups: at most {max_follow_ups} new sub-questions that would close the most important weak or
    missing requirements. Do not repeat questions already researched. Propose none if coverage is good.
 Write in the same language as the topic."""
+
+REVIEWER_STEERING = """The user redirected the research while it ran. Their directions (in order):
+{steering}
+Plan follow-up sub-questions that carry out these directions first (up to {max_follow_ups}), as long as they
+stay within the topic, and mention in the gaps what the directions still leave open."""
+
+REPORTER_STEERING = """While the research ran, the user asked for this; make sure the report addresses it where the
+claims allow:
+{steering}"""
+
+REPORTER_UPDATE = """This is version {version} of a report that was first written earlier. The research was re-run for
+information published on or after {since}. Claims marked "new": true come from this run; a claim marked
+"updated": true replaced an earlier, now outdated claim. After the 摘要 section add a section 本次更新
+(translated to the topic's language) that says in 2 to 5 bullets what changed since the previous version,
+citing the new or updated claims; if nothing changed, say so in one sentence."""
+
+ANSWERER = """You answer a follow-up question about a research report, using only the verified claims listed
+(labelled C1, C2, ...; each with its status: corroborated, asserted = single source, contested = sources
+disagree). Rules:
+- Use only these claims; never add facts, numbers or names from memory. Cite every factual sentence with
+  the markers of the claims it relies on, e.g. "... [C3][C7]。". Keep the claims' qualifiers and dates.
+- Say when a claim has a single source or is contested.
+- If the user selected a passage of the report, answer about that passage.
+- If the claims cannot answer the question, say so plainly, set needsResearch, and write the
+  sub-question a new research run should look into as researchQuestion.
+- Answer in the question's language, in at most 250 words of Markdown (no tables, no HTML)."""
 
 REPORTER = """You are the lead researcher writing the final report for the user.
 You get the topic, the requirements, the review notes, and a catalog of verified claims labelled C1, C2, ...

@@ -1,6 +1,6 @@
 # God Eye Researcher
 
-輸入一個研究主題，Supervisor agent 拆解成子題與「需求清單」、平行派出 sub-agents 上網研究，每個子題完成就即時串流到畫面：先用通用卡片顯示內容，客製 sub-UI 生成好再替換上去，同時長出關聯圖。每個結論都要對得回原文：sub-agent 讀過的網頁存成專案文件，主張必須附上逐字引文，後端核對引文確實出現在網頁裡，再依獨立發布者數量標成「已佐證／單一來源／有爭議」。綜合報告逐句引用主張（`[C3]`），寫完再逐句查核、修正沒有根據的句子。專案可以存到 S3、帶著舊結果重新研究，或封存清理。
+寫下研究問題與簡報（讀者、時間範圍、要涵蓋的面向、深度、來源偏好），Supervisor agent 先提出研究計畫給你確認：子題可以改寫、調整順序、刪除或新增。確認後平行派出 sub-agents 上網研究，每個子題完成就即時串流到畫面；研究中可以隨時改方向、要求「用目前結果寫報告」或停止。每個結論都要對得回原文：sub-agent 讀過的網頁存成專案文件，主張必須附上逐字引文，後端核對引文確實出現在網頁裡，再依獨立發布者數量標成「已證實／單一來源／有爭議」。報告逐句引用主張（`[C3]`），寫完再逐句查核、修正沒有根據的句子；讀報告時可以追問（只用已查證的主張回答），之後可以「增量重跑」，只找上次之後的新資料，標出被取代的主張並保留舊版報告。完成或失敗時可寄 email 通知。
 
 設計文件：見 Claude Docs 上的「動態研究平台設計」與「研究代理 v2 規劃」。資料契約：[`contracts/events.md`](contracts/events.md)。評測：[`eval/README.md`](eval/README.md)。
 
@@ -25,6 +25,20 @@ Browser ──HTTPS──> CloudFront ─┬─ /            -> S3 (React app)
 
 身分一路傳遞：使用者的 Cognito access token → agents gateway（JWT 驗證）→ `JWT_PASSTHROUGH` → runtime（再驗一次同一個 JWT，`Authorization` header 在 allowlist）→ supervisor 用同一個 token 呼叫 tools gateway → interceptor 寫入 `_caller` → Lambda 檢查專案擁有者。
 
+## 使用流程
+
+前端分成五個畫面（hash 路由，可以直接分享連結）：
+
+| 畫面 | 路由 | 做的事 | 後端 |
+| --- | --- | --- | --- |
+| 新研究與計畫 | `#/new`、`#/p/{id}/plan` | 研究問題、三個快速選擇（讀者、時間範圍、要涵蓋的面向）、深度、來源偏好；「產生計畫」後右側出現可編輯的計畫與預估來源數、時間；問題或設定改過時提示重新產生 | runtime `plan` → 專案變成 `draft`、`plan.proposed`；`plan_propose` 存使用者改過的計畫；`start` 帶著核准的計畫開始 |
+| 研究進行中 | `#/p/{id}/run` | 左側子題與涵蓋率、中間即時發現（可篩選有爭議／待補證）、右側活動紀錄與計數；「改方向」輸入框、「停止並用目前結果寫報告」、「停止」 | `project_steer`（`redirect` / `finish`），runtime 每 15 秒的心跳讀取；`project_stop` |
+| 報告閱讀器 | `#/p/{id}/report` | 目錄附證據強度、每段旁邊的證據摘要、編號引用 → 引文卡片（原文高亮連結、下一個來源）、來源說法不同時並列兩種說法、逐句查核結果、歷史版本、追問 | runtime `ask` → `qa.ready`；需要新資料時一鍵增量重跑 |
+| 證據台 | `#/p/{id}/evidence` | 所有主張的表格（依狀態、子題、來源類型、年份篩選，可排序、匯出 CSV）、選取主張看它連到的來源與實體、衝突比對、主題地圖、來源清單、「需要你判斷」 | `project_get` |
+| 專案庫 | `#/library` | 依狀態分類；超過 30 天的報告建議增量重跑；草稿繼續規劃；停止或失敗的可重新研究；封存 | `project_list`、`start`（`mode: "incremental"`）、`project_cleanup` |
+
+完整的資料契約（狀態、版本、事件與工具）見 [`contracts/events.md`](contracts/events.md) 的「Plan review, steering, follow-up questions, incremental runs」。
+
 ## 即時進度與 watchdog
 
 研究過程中，Runtime 直接用 IAM 發佈「進度事件」到 AppSync（`agent.activity`、`agent.heartbeat`、`agent.stalled`、`synthesis.delta`）。這些事件不存檔，只為了讓畫面隨時顯示每個 agent 在做什麼；要保存的資料（findings、sub-UI、報告）仍然經過 tools gateway 寫入。
@@ -32,7 +46,7 @@ Browser ──HTTPS──> CloudFront ─┬─ /            -> S3 (React app)
 | 機制 | 做法 | 設定（runtime 環境變數） |
 | --- | --- | --- |
 | 活動回報 | Strands 的每個 token、思考片段、工具呼叫都會更新該 agent 的「最後活動時間」；換步驟（搜尋、閱讀、寫入…）時發佈 `agent.activity` | — |
-| 心跳 | 每 10 秒發佈 `agent.heartbeat`；每 30 秒呼叫 `project_save` 更新 `updatedAt`，重新整理頁面時也能判斷研究是否還活著（也順便發現研究已被停止） | — |
+| 心跳 | 每 10 秒發佈 `agent.heartbeat`；每 15 秒呼叫 `project_save` 更新 `updatedAt`，重新整理頁面時也能判斷研究是否還活著；回應裡帶著被停止的狀態與新的改方向要求（`steering`） | — |
 | 停滯偵測 | 某個 LLM 步驟超過 `STALL_SEC` 沒有任何 token 或工具呼叫，或超過 `STEP_BUDGET_SEC`，watchdog 就取消它並重試一次；再停滯就放棄該子題，其餘照常完成 | `STALL_SEC=120`、`STEP_BUDGET_SEC=600` |
 | 綜合報告 | 每輪子題完成後 Opus 5.5 檢查需求涵蓋（`coverage.updated`）、矛盾與缺口，針對薄弱或缺少的需求追加子題；最後把引用 `[C#]` 的報告逐字串流（`synthesis.delta`），再逐句查核（`verifying`），由 `synthesis_write` 存檔並發佈 `synthesis.ready` | 輪數由研究深度決定；`FOLLOW_UP_ROUNDS` 可設上限（0 關閉補充研究）；`MAX_PARALLEL=6` |
 
@@ -61,11 +75,11 @@ Project ─ Requirement（需求，q1…）◄── Coverage（covered / weak /
 | 涵蓋度驅動補充研究 | supervisor 依需求逐項標 covered / weak / missing，補充子題只針對 weak / missing | `orchestrator` |
 | 報告逐句查核 | 報告只能引用主張 `[C#]`；寫完後逐句判斷是否被所引主張支持，不支持的句子改寫或刪除，並檢查連結是否失效；結果存在 `synthesis.verification` | `agent/research_agent/verify.py` |
 
-畫面上：卡片列出查證過的主張（實心＝已佐證、半橘＝有爭議、空心＝單一來源），展開可看原文引文並直接跳到網頁中的那一段；研究計畫下方是需求涵蓋清單；報告上方顯示查核結果，點 `[C#]` 會在下方展開該主張與引文；右側「來源」列出去重、分類並評分過的網頁。
+畫面上：證據強度一律用「長條」圖示加上文字（兩條藍＝已證實、藍加橘＝有爭議、空心＝單一來源），不只靠顏色；發現卡片、報告每段旁邊、目錄與證據台都用同一種標示。引文可以直接跳到網頁中的那一段（text fragment 高亮）。
 
 ### 研究簡報
 
-啟動研究時可以帶上簡報（都可省略），見 `contracts/events.md`：
+產生計畫或啟動研究時可以帶上簡報（都可省略），會和專案一起存起來，見 `contracts/events.md`：
 
 | 欄位 | 用途 |
 | --- | --- |
@@ -77,7 +91,10 @@ Project ─ Requirement（需求，q1…）◄── Coverage（covered / weak /
 
 ## 停止研究
 
-研究進行中，畫面上的「停止研究」會停下整個 AgentCore 流程，已完成的 findings、sub-UI 與關聯圖都保留。停止分兩步，任何一步單獨成功都能停下來：
+研究進行中有兩種收尾方式：
+
+- **停止並用目前結果寫報告**：送出 `finish` 改方向要求。還沒開始的子題略過、不再補充研究，用已完成的子題寫報告並查核，專案照常變成 `completed`。
+- **停止**：停下整個 AgentCore 流程，不寫報告，已完成的 findings、sub-UI 與關聯圖都保留。停止分兩步，任何一步單獨成功都能停下來：
 
 | 步驟 | 路徑 | 做的事 |
 | --- | --- | --- |
@@ -115,6 +132,7 @@ cdk bootstrap                      # 每個帳號/region 一次
 cdk deploy GodEyeBase              # POC 想讓 destroy 時刪光資料：加 -c destroyOnDelete=true
 #   選用：-c blockedDomains=content-farm.example,spam.example   封鎖的網域（來源分數降到最低、不抓取）
 #   選用：-c searchSecretArn=<Secrets Manager ARN>               第二搜尋來源與抓取備援（見下方）
+#   選用：-c notifyFromEmail=research@example.com                研究結束的 email 通知（見下方）
 cd ..
 
 # 2. AgentCore：兩個 gateway、research runtime、targets（含 Web Search connector）
@@ -135,6 +153,8 @@ aws cognito-idp admin-create-user --user-pool-id <UserPoolId> --username you@exa
 
 **第二搜尋來源（選用）。** AgentCore Web Search 的中文結果較弱；若有 Tavily 或 Exa 的 API key，先存到 Secrets Manager（內容 `{"provider": "tavily", "apiKey": "..."}` 或 `"provider": "exa"`），部署 GodEyeBase 時加上 `-c searchSecretArn=<ARN>`。BaseStack 的 output `SecondarySearch` 會變成 `on`，`deploy_agentcore.py` 會據此在 runtime 設定 `SECONDARY_SEARCH=true`，sub-agent 就多了 `search_web` 工具；`fetch_page` 直接抓取失敗（例如需要 JavaScript 的頁面）時也會改用供應商的 extract API。沒有設定時一切照常，只用 AgentCore Web Search。
 
+**Email 通知（選用）。** 部署 GodEyeBase 時加上 `-c notifyFromEmail=<寄件地址>`，地址（或它的網域）必須先在同一個 region 的 Amazon SES 驗證；SES 還在 sandbox 時，收件人也要驗證過。設定後 `config.json` 的 `emailNotifications` 會是 `true`，畫面上才會出現「完成時用 email 通知我」；信件寄到使用者 Cognito 帳號的 email，內含報告連結（GodEyeWeb 部署後寫入 SSM 參數 `/god-eye-researcher/web-url`）。
+
 本機連 AWS 開發：`frontend/public/config.json` 改成 `"mode": "live"` 並填入 BaseStack outputs，`npm run dev` 會依 `.env.local` 把 `/research` 與 `/mcp` 代理到兩個 gateway。
 
 ## 測試
@@ -147,6 +167,8 @@ cd frontend && npm test && npm run build
 ```
 
 `tools/tests/test_agent_evidence.py` 跑一次完整的證據流程（網頁登記與去重、引文驗證、主張狀態、涵蓋度、報告查核與修正），並寫出 `contracts/fixtures/evidence-run.json`；前端的 `src/contract.test.ts` 用這份 fixture 重播事件與 `project_get`，確保前後端對資料格式的理解一致。報告品質用 `eval/` 評測（需要已部署的環境），見 [`eval/README.md`](eval/README.md)。
+
+`tools/tests/test_workflow_tools.py` 測工具層的新流程（草稿與計畫審閱、狀態轉換、改方向、主張取代與報告歷史、追問、email 通知），`tools/tests/test_agent_workflow.py` 用 orchestrator 跑完整流程：審閱過的計畫照原樣研究、計畫失敗、改方向多出一輪並寫進報告、提早收尾、增量重跑產生第 2 版、追問引用報告的編號並標出需要新資料的問題。前端的 `src/workflow.test.ts` 測路由、進度、reducer 與 mock 後端的同一套流程。
 
 `tools/tests/test_agent_integration.py` 用真正的 orchestrator 呼叫真正的 Lambda handler（moto 模擬 DynamoDB/S3），只把 LLM 換成腳本，驗證整條路徑：計畫 → 平行 findings → 關聯 → 模板快取 → sub-UI → 完成、被拒的 finding 會帶錯誤重試、失敗會發佈 `project.failed`、使用者停止時流程在幾秒內收尾且不再寫入。`tools/tests/test_agent_stop.py` 測 runtime 的 `stop` action 與帶 bearer token 的 `StopRuntimeSession`。
 
@@ -167,6 +189,8 @@ AgentCore 資源（兩個 gateway 與 runtime）不在 CDK 裡，請在主控台
 - Tools gateway 的 `tools/list` 應出現 `web-search___WebSearch`；若 research runtime log 出現 `tools gateway is missing`，代表 Web Search target 沒建好（檢查 region 與 gateway role 的 `bedrock-agentcore:InvokeWebSearch`）。
 - 停止研究：按下「停止研究」後，runtime log 應出現 `research stop requested`、`ending AgentCore session`，之後該 session 不再有 log。若出現 `could not end the session`，代表帶 bearer token 的 `StopRuntimeSession` 被拒絕；研究本身仍已停止，session 會在閒置 15 分鐘後結束。
 - Agents gateway 是否依 `X-Amzn-Bedrock-AgentCore-Runtime-Session-Id` 把 stop 送到研究所在的 session：runtime 回傳 `stopping` 代表有，`terminated` 代表落在新 session 但已處理。
+- 改方向：送出後 15 秒內 runtime log 應出現 `steer … received: redirect`（或 `the user asked to wrap up`），畫面上的要求變成「第 n 輪已套用」。
+- Email 通知：設定 `notifyFromEmail` 後，研究完成時 project-tools Lambda 的 log 應出現 `end-of-run email sent`；若是 `MessageRejected`，通常是寄件地址未驗證或 SES 仍在 sandbox。
 
 ## 已知限制
 
@@ -179,4 +203,7 @@ AgentCore 資源（兩個 gateway 與 runtime）不在 CDK 裡，請在主控台
 - 引文核對是字面比對（忽略空白、全半形與引號差異）：sub-agent 改寫過的引文會被丟掉。這是刻意的，代價是偶爾少收一個主張。
 - 「已佐證」只代表兩個獨立發布者說了同樣的事，不代表它是對的；來源類型與分數只是排序用的先驗，不判斷真偽。
 - 報告逐句查核用的是同一個模型家族，只檢查「句子是否被所引主張支持」，不重新上網查證。
+- 增量重跑靠搜尋結果與網頁上的發布日期判斷「上次之後的新資料」；沒有日期的網頁仍可能被當成新資料，引文核對與主張狀態的規則照常適用。
+- 追問只用已查證的主張回答，不會上網；答不出來時標成「需要新資料」，由使用者決定要不要增量重跑。
+- 改方向在下一次心跳（最多 15 秒）後生效，報告開始撰寫後送出的要求不會套用。
 - **AgentCore Web Search 的索引以英文內容為主**，中文、日文查詢的結果較弱（有實測回報中文與日文查詢的結果品質偏低）。sub-agent 會同時用英文關鍵字查詢；設定第二搜尋來源（`searchSecretArn`）也有幫助。使用條款要求把引用與連結顯示給使用者，finding 卡片的「來源」與引文已經做到；也不允許大量擷取或儲存搜尋結果：我們只保存自己抓取的網頁快照，封存時只留文件的中繼資料。

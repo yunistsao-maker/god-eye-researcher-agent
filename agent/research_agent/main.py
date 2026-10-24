@@ -5,8 +5,12 @@ the user's Cognito token, and the Authorization header is allow-listed so the ag
 tools gateway as the same user.
 
 Actions:
+- `plan`: drafts a plan for the user to review (the project is created as a draft); async.
 - `start`: returns at once; research continues as a registered async task so the session stays
-  alive (the ping reports HealthyBusy) while progress streams to the UI as AppSync events.
+  alive (the ping reports HealthyBusy) while progress streams to the UI as AppSync events. With
+  `plan` it researches the plan the user approved; with `mode: "incremental"` it re-runs a completed
+  project for newer data.
+- `ask`: answers a follow-up question about a report from its verified claims; async.
 - `stop`: stops a run (contracts/events.md, "Stopping a run"). The run is cancelled cooperatively,
   then this AgentCore session is terminated with StopRuntimeSession.
 """
@@ -36,6 +40,8 @@ app = BedrockAgentCoreApp()
 TOOLS_GATEWAY_URL = os.environ.get("TOOLS_GATEWAY_URL", "")
 REGION = os.environ.get("AWS_REGION", "us-west-2")
 PROJECT_ID = re.compile(r"^p-[a-z0-9-]{4,60}$")
+QA_ID = re.compile(r"^qa-[a-z0-9-]{4,40}$")
+ACTIONS = ("plan", "start", "ask", "stop")
 UNWIND_SEC = 15.0     # after a stop, end the session even if the run has not unwound by then
 END_DELAY_SEC = 2.0   # let the HTTP response that asked for the stop leave before the microVM goes
 
@@ -150,19 +156,31 @@ def _request_stop(run: Run, reason: str, token: str = "") -> bool:
 
 # --- start ------------------------------------------------------------------------------------------
 
-def _heartbeat(gw, project_id: str, on_stopped: Callable[[], None]) -> Callable[[], None]:
-    """Refreshes project.updatedAt (so a reloaded page can tell a live run from a dead one) and
-    notices a stop made elsewhere: project_save is refused with `stopped` once the user stopped it."""
+def _heartbeat(gw, project_id: str, on_stopped: Callable[[], None],
+               on_steering: Callable[[list], None] = lambda steers: None) -> Callable[[], None]:
+    """Refreshes project.updatedAt (so a reloaded page can tell a live run from a dead one), notices a
+    stop made elsewhere (project_save is refused with `stopped` once the user stopped it) and picks up
+    the user's steering, which project_save returns while the project runs."""
 
     def beat() -> None:
         try:
-            gw.call("project-tools", "project_save", projectId=project_id, status="running")
+            res = gw.call("project-tools", "project_save", projectId=project_id, status="running")
         except ToolCallError as err:
             if not err.stopped:
                 raise
             on_stopped()
+            return
+        on_steering(res.get("steering") or [])
 
     return beat
+
+
+def _settings(brief: Brief) -> Settings:
+    settings = Settings.for_depth(brief.depth)
+    settings.max_parallel = min(settings.max_parallel, int(os.environ.get("MAX_PARALLEL", "6")))
+    if os.environ.get("FOLLOW_UP_ROUNDS"):  # an operator cap on the depth preset (0 turns follow-ups off)
+        settings.follow_up_rounds = min(settings.follow_up_rounds, max(0, int(os.environ["FOLLOW_UP_ROUNDS"])))
+    return settings
 
 
 def _run(task_id: int, token: str, payload: dict, session_id: str) -> None:
@@ -174,19 +192,22 @@ def _run(task_id: int, token: str, payload: dict, session_id: str) -> None:
     watchdog = None
     try:
         with ToolsGateway(TOOLS_GATEWAY_URL, token) as gw:
+            incremental = payload.get("mode") == "incremental"
             brief = Brief.from_payload(payload)
-            settings = Settings.for_depth(brief.depth)
-            settings.max_parallel = min(settings.max_parallel, int(os.environ.get("MAX_PARALLEL", "6")))
-            if os.environ.get("FOLLOW_UP_ROUNDS"):  # an operator cap on the depth preset (0 turns follow-ups off)
-                settings.follow_up_rounds = min(settings.follow_up_rounds, max(0, int(os.environ["FOLLOW_UP_ROUNDS"])))
+            orchestrator = Orchestrator(gw, StrandsLlm(), None if incremental else _settings(brief), tracker=tracker,
+                                        on_report_text=publisher.append_text, stop=run.stop,
+                                        secondary_search=os.environ.get("SECONDARY_SEARCH", "false").lower() == "true",
+                                        max_parallel=int(os.environ.get("MAX_PARALLEL", "6")))
             watch = WatchSettings(stall_sec=_env_float("STALL_SEC", 120), budget_sec=_env_float("STEP_BUDGET_SEC", 600))
             watchdog = Watchdog(tracker, watch, persist=_heartbeat(
-                gw, project_id, lambda: _request_stop(run, "stopped by another client"))).start()
-            orchestrator = Orchestrator(gw, StrandsLlm(), settings, tracker=tracker,
-                                        on_report_text=publisher.append_text, stop=run.stop,
-                                        secondary_search=os.environ.get("SECONDARY_SEARCH", "false").lower() == "true")
-            result = orchestrator.run(project_id=project_id, topic=payload["topic"],
-                                      parent_project_id=payload.get("parentProjectId"), session_id=session_id, brief=brief)
+                gw, project_id, lambda: _request_stop(run, "stopped by another client"), orchestrator.receive_steering)).start()
+            if incremental:
+                extra = [q for q in payload.get("extraQuestions") or [] if isinstance(q, str)][:3]
+                result = orchestrator.run_incremental(project_id=project_id, topic=payload["topic"], session_id=session_id,
+                                                      overrides=payload, extra_questions=extra)
+            else:
+                result = orchestrator.run(project_id=project_id, topic=payload["topic"], parent_project_id=payload.get("parentProjectId"),
+                                          session_id=session_id, brief=brief, plan=Orchestrator.approved_plan(payload.get("plan")))
             log.info("research finished: %s", result)
     except ResearchStopped:  # stopped before the run had started
         log.info("research stopped before it started")
@@ -220,6 +241,54 @@ def _start(payload: dict, context) -> dict:
     task_id = app.add_async_task("research", {"projectId": pid})
     threading.Thread(target=_run, args=(task_id, token, {**payload, "topic": topic.strip()}, context.session_id), daemon=True).start()
     return {"projectId": pid, "status": "accepted"}
+
+
+# --- plan and ask: short tasks that write through the tools gateway ------------------------------------
+
+def _side_task(name: str, payload: dict, context, work: Callable[[Orchestrator], dict]) -> dict:
+    token = _bearer(getattr(context, "request_headers", None))
+    if not token:
+        return {"error": "Missing Authorization header. Check the runtime's request header allowlist."}
+    if not TOOLS_GATEWAY_URL:
+        return {"error": "TOOLS_GATEWAY_URL is not configured"}
+    pid = payload["projectId"]
+    task_id = app.add_async_task(name, {"projectId": pid})
+
+    def go() -> None:
+        publisher = _publisher(pid)
+        try:
+            with ToolsGateway(TOOLS_GATEWAY_URL, token) as gw:
+                result = work(Orchestrator(gw, StrandsLlm(), tracker=Tracker(publisher.emit)))
+                log.info("%s finished: %s", name, result)
+        except Exception:  # noqa: BLE001 - already reported to the UI (plan.failed / qa.failed)
+            log.exception("%s failed", name)
+        finally:
+            publisher.close()
+            app.complete_async_task(task_id)
+
+    threading.Thread(target=go, name=name, daemon=True).start()
+    return {"projectId": pid, "status": "accepted"}
+
+
+def _plan(payload: dict, context) -> dict:
+    topic = payload.get("topic")
+    if not (isinstance(topic, str) and 3 <= len(topic.strip()) <= 300):
+        return {"error": "topic must be 3-300 characters"}
+    brief = Brief.from_payload(payload)
+    return _side_task("plan", payload, context, lambda orch: orch.propose(
+        project_id=payload["projectId"], topic=topic.strip(), parent_project_id=payload.get("parentProjectId"), brief=brief))
+
+
+def _ask(payload: dict, context) -> dict:
+    question, qa_id, selection = payload.get("question"), payload.get("qaId"), payload.get("selection") or ""
+    if not (isinstance(question, str) and 2 <= len(question.strip()) <= 1000):
+        return {"error": "question must be 2-1000 characters"}
+    if not (isinstance(qa_id, str) and QA_ID.match(qa_id)):
+        return {"error": "qaId must match ^qa-[a-z0-9-]{4,40}$"}
+    if not isinstance(selection, str):
+        return {"error": "selection must be text"}
+    return _side_task("ask", payload, context, lambda orch: orch.answer(
+        project_id=payload["projectId"], qa_id=qa_id, question=question.strip(), selection=selection[:2000]))
 
 
 # --- stop -------------------------------------------------------------------------------------------
@@ -269,12 +338,14 @@ def _stop(payload: dict, context) -> dict:
 @app.entrypoint
 def invoke(payload: dict, context) -> dict:
     action = payload.get("action")
-    if action not in ("start", "stop"):
-        return {"error": "Unsupported action. Send {action: 'start', projectId, topic, depth?, audience?, startDate?, "
-                         "includeDomains?, excludeDomains?, notes?} or {action: 'stop', projectId}."}
+    if action not in ACTIONS:
+        return {"error": "Unsupported action. Send {action: 'plan' | 'start', projectId, topic, depth?, audience?, startDate?, "
+                         "includeDomains?, excludeDomains?, notes?, plan?, mode?, extraQuestions?}, "
+                         "{action: 'ask', projectId, qaId, question, selection?} or {action: 'stop', projectId}."}
     if not (isinstance(payload.get("projectId"), str) and PROJECT_ID.match(payload["projectId"])):
         return {"error": "projectId must match ^p-[a-z0-9-]{4,60}$"}
-    return _start(payload, context) if action == "start" else _stop(payload, context)
+    handler = {"plan": _plan, "start": _start, "ask": _ask, "stop": _stop}[action]
+    return handler(payload, context)
 
 
 if __name__ == "__main__":

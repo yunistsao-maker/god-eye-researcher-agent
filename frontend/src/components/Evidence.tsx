@@ -2,12 +2,8 @@ import { memo } from 'react';
 import { shortUrl } from '../lib/activity';
 import { CLAIM_STATUS_LABEL, claimMeta, quoteHref, sortClaims } from '../lib/evidence';
 import { sourceTypeLabel } from '../state';
-import type { Claim, ClaimStatus, Evidence } from '../types';
-
-/** Solid = corroborated, split = contested, hollow = one source. Colour is never the only signal: a label sits next to it. */
-export function ClaimGlyph({ status }: { status: ClaimStatus }) {
-  return <span className={'cg ' + status} aria-hidden="true" />;
-}
+import type { Claim, Evidence } from '../types';
+import { Bars } from './Bars';
 
 export function EvidenceList({ evidence }: { evidence: readonly Evidence[] }) {
   if (!evidence.length) return null;
@@ -21,7 +17,7 @@ export function EvidenceList({ evidence }: { evidence: readonly Evidence[] }) {
           <li key={e.docId + ':' + i} className={'ev-i' + (against ? ' against' : '')}>
             <blockquote className="q">{e.quote}</blockquote>
             <div className="ev-src">
-              <span className={'stance' + (against ? ' against' : '')}>{against ? '反駁' : '支持'}</span>
+              <span className={'stance' + (against ? ' against' : '')}>{against ? '反對' : '支持'}</span>
               {href ? (
                 <a href={href} target="_blank" rel="noopener noreferrer" title={e.title || e.url}>
                   {name}
@@ -29,7 +25,7 @@ export function EvidenceList({ evidence }: { evidence: readonly Evidence[] }) {
               ) : (
                 <span title={e.title || e.url}>{name}</span>
               )}
-              <span className="ty">{sourceTypeLabel(e.sourceType)}</span>
+              <span>{sourceTypeLabel(e.sourceType)}</span>
               {e.duplicateOf ? (
                 <span className="dup" title="這頁轉載自另一個來源，不算獨立佐證">
                   轉載
@@ -43,16 +39,17 @@ export function EvidenceList({ evidence }: { evidence: readonly Evidence[] }) {
   );
 }
 
-function ClaimItem({ claim }: { claim: Claim }) {
+export function ClaimItem({ claim }: { claim: Claim }) {
   const label = CLAIM_STATUS_LABEL[claim.status] ?? claim.status;
   return (
     <li className={'claim ' + claim.status}>
-      <ClaimGlyph status={claim.status} />
-      <div className="claim-b">
+      <Bars strength={claim.status} support={claim.independentSources} against={claim.contradicting} />
+      <div>
         <p className="claim-t">{claim.text}</p>
         <details className="claim-ev">
           <summary>
-            <span className="claim-s">{label}</span> · {claimMeta(claim)}
+            <span className={'strength ' + claim.status}>{label}</span> · {claimMeta(claim)}
+            {claim.updates ? ' · 取代了較舊的主張' : ''}
           </summary>
           <EvidenceList evidence={claim.evidence} />
         </details>
@@ -61,49 +58,14 @@ function ClaimItem({ claim }: { claim: Claim }) {
   );
 }
 
-interface ClaimListProps {
-  claims: readonly Claim[];
-  /** Folded behind a summary line (used under a sub-UI, where the claims are secondary). */
-  folded?: boolean;
-}
-
-function ClaimListImpl({ claims, folded = false }: ClaimListProps) {
+function ClaimListImpl({ claims }: { claims: readonly Claim[] }) {
   if (!claims.length) return null;
-  const sorted = sortClaims(claims);
-  const n = (s: ClaimStatus) => claims.filter((c) => c.status === s).length;
-  const counts = (['corroborated', 'contested', 'asserted'] as const)
-    .filter((s) => n(s) > 0)
-    .map((s) => (
-      <span key={s} className={'cc ' + s}>
-        <ClaimGlyph status={s} />
-        {CLAIM_STATUS_LABEL[s]} {n(s)}
-      </span>
-    ));
-  const list = (
+  return (
     <ul className="claims">
-      {sorted.map((c) => (
+      {sortClaims(claims).map((c) => (
         <ClaimItem key={c.claimId} claim={c} />
       ))}
     </ul>
-  );
-  if (folded) {
-    return (
-      <details className="claims-fold">
-        <summary>
-          查證過的主張 {claims.length} <span className="claim-counts">{counts}</span>
-        </summary>
-        {list}
-      </details>
-    );
-  }
-  return (
-    <div className="claims-box">
-      <div className="claims-hd">
-        <span className="claims-h">查證過的主張</span>
-        <span className="claim-counts">{counts}</span>
-      </div>
-      {list}
-    </div>
   );
 }
 

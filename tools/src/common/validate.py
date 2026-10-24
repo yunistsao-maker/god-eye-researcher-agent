@@ -20,6 +20,10 @@ PROJECT_ID = re.compile(r"^p-[a-z0-9-]{4,60}$")
 CLAIM_ID = re.compile(r"^c-[a-z0-9-]{1,60}$")
 DOC_ID = re.compile(r"^d-[a-f0-9]{12}$")
 REQUIREMENT_ID = re.compile(r"^q[0-9]{1,2}$")
+STEER_ID = re.compile(r"^s-[a-z0-9]{6,20}$")
+QA_ID = re.compile(r"^qa-[a-z0-9-]{4,40}$")
+DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+DEPTHS = {"quick", "standard", "deep"}
 STANCES = {"supports", "contradicts"}
 CLAIM_STATUSES = {"asserted", "corroborated", "contested", "superseded"}
 COVERAGE_STATUSES = {"covered", "weak", "missing"}
@@ -195,6 +199,31 @@ def validate_claim_drafts(claims: Any) -> list[str]:
             if not (isinstance(e, dict) and isinstance(e.get("docId"), str) and DOC_ID.match(e["docId"])
                     and _str(e.get("quote"), 8, 600) and e.get("stance", "supports") in STANCES):
                 errs.append(f"claims[{i}].evidence[{j}] needs docId (d-…), a quote of 8-600 chars and stance supports|contradicts")
+        if c.get("updates") is not None and not (isinstance(c["updates"], str) and CLAIM_ID.match(c["updates"])):
+            errs.append(f"claims[{i}].updates must be the claimId of an earlier claim")
+    return errs
+
+
+def validate_brief(brief: Any) -> list[str]:
+    """The research brief stored with a project (depth, reader, time window, source preferences)."""
+    if not isinstance(brief, dict):
+        return ["brief must be an object"]
+    errs = []
+    extra = set(brief) - {"depth", "audience", "startDate", "includeDomains", "excludeDomains", "notes"}
+    if extra:
+        errs.append(f"brief has unknown fields {sorted(extra)}")
+    if brief.get("depth") is not None and brief["depth"] not in DEPTHS:
+        errs.append(f"brief.depth must be one of {sorted(DEPTHS)}")
+    if brief.get("audience") is not None and not _str(brief["audience"], 0, 200):
+        errs.append("brief.audience must be at most 200 chars")
+    if brief.get("notes") is not None and not _str(brief["notes"], 0, 1000):
+        errs.append("brief.notes must be at most 1000 chars")
+    if brief.get("startDate") is not None and not (isinstance(brief["startDate"], str) and DATE.match(brief["startDate"])):
+        errs.append("brief.startDate must be YYYY-MM-DD")
+    for key in ("includeDomains", "excludeDomains"):
+        v = brief.get(key)
+        if v is not None and not (isinstance(v, list) and len(v) <= 50 and all(_str(d, 1, 253) for d in v)):
+            errs.append(f"brief.{key} must be a list of at most 50 domains")
     return errs
 
 

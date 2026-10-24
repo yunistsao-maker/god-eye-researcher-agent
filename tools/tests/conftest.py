@@ -46,7 +46,7 @@ def aws(monkeypatch):
         # Import the tool modules inside the mock so their module-level clients are mocked.
         mods = {}
         for name in ["common.store", "common.appsync", "common.toolkit", "common.validate", "common.sources", "common.providers",
-                     "data_tools", "project_tools", "web_tools", "cleanup", "interceptor"]:
+                     "common.notify", "data_tools", "project_tools", "web_tools", "cleanup", "interceptor"]:
             mods[name] = importlib.reload(importlib.import_module(name))
         published = []
 

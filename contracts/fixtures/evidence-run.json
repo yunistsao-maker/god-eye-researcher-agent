@@ -3,10 +3,11 @@
   {
    "type": "project.created",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T16:14:18.583Z",
+   "ts": "2026-10-23T17:41:22.814Z",
    "data": {
     "topic": "AI 視覺檢測導入",
-    "parentProjectId": null
+    "parentProjectId": null,
+    "status": "running"
    }
   },
   {
@@ -22,7 +23,7 @@
   {
    "type": "plan.ready",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T16:14:18.591Z",
+   "ts": "2026-10-23T17:41:22.822Z",
    "data": {
     "subQuestions": [
      {
@@ -68,7 +69,7 @@
   {
    "type": "source.added",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T16:14:18.616Z",
+   "ts": "2026-10-23T17:41:22.848Z",
    "data": {
     "doc": {
      "docId": "d-d7d761fa26fd",
@@ -81,14 +82,14 @@
      "score": 0.9,
      "duplicateOf": null,
      "via": "direct",
-     "fetchedAt": "2026-10-23T16:14:18Z"
+     "fetchedAt": "2026-10-23T17:41:22Z"
     }
    }
   },
   {
    "type": "source.added",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T16:14:18.637Z",
+   "ts": "2026-10-23T17:41:22.870Z",
    "data": {
     "doc": {
      "docId": "d-9ca33f0e781c",
@@ -101,14 +102,14 @@
      "score": 0.5,
      "duplicateOf": null,
      "via": "direct",
-     "fetchedAt": "2026-10-23T16:14:18Z"
+     "fetchedAt": "2026-10-23T17:41:22Z"
     }
    }
   },
   {
    "type": "source.added",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T16:14:18.663Z",
+   "ts": "2026-10-23T17:41:22.896Z",
    "data": {
     "doc": {
      "docId": "d-6e3ec00dc2d0",
@@ -121,7 +122,7 @@
      "score": 0.5,
      "duplicateOf": "d-9ca33f0e781c",
      "via": "direct",
-     "fetchedAt": "2026-10-23T16:14:18Z"
+     "fetchedAt": "2026-10-23T17:41:22Z"
     }
    }
   },
@@ -138,7 +139,7 @@
   {
    "type": "finding.ready",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T16:14:18.723Z",
+   "ts": "2026-10-23T17:41:22.956Z",
    "data": {
     "finding": {
      "findingId": "f-1",
@@ -236,7 +237,7 @@
   {
    "type": "relation.added",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T16:14:18.723Z",
+   "ts": "2026-10-23T17:41:22.956Z",
    "data": {
     "entities": [
      {
@@ -267,7 +268,7 @@
   {
    "type": "source.added",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T16:14:18.756Z",
+   "ts": "2026-10-23T17:41:22.990Z",
    "data": {
     "doc": {
      "docId": "d-a7cf0029d5b2",
@@ -280,7 +281,7 @@
      "score": 0.45,
      "duplicateOf": null,
      "via": "direct",
-     "fetchedAt": "2026-10-23T16:14:18Z"
+     "fetchedAt": "2026-10-23T17:41:22Z"
     }
    }
   },
@@ -297,7 +298,7 @@
   {
    "type": "finding.ready",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T16:14:18.824Z",
+   "ts": "2026-10-23T17:41:23.048Z",
    "data": {
     "finding": {
      "findingId": "f-2",
@@ -372,7 +373,7 @@
   {
    "type": "relation.added",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T16:14:18.824Z",
+   "ts": "2026-10-23T17:41:23.048Z",
    "data": {
     "entities": [
      {
@@ -420,7 +421,7 @@
   {
    "type": "coverage.updated",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T16:14:18.835Z",
+   "ts": "2026-10-23T17:41:23.057Z",
    "data": {
     "round": 1,
     "requirements": [
@@ -445,7 +446,7 @@
       "claimIds": []
      }
     ],
-    "updatedAt": "2026-10-23T16:14:18Z"
+    "updatedAt": "2026-10-23T17:41:23Z"
    }
   },
   {
@@ -471,7 +472,7 @@
   {
    "type": "synthesis.ready",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T16:14:18.853Z",
+   "ts": "2026-10-23T17:41:23.077Z",
    "data": {
     "synthesis": {
      "report": "## 摘要\n\n多數廠商保留既有 AOI 設備並加上 AI 複判 [C1]。投資回收期的說法分歧 [C3]。這句話引用了一個根本不存在的主張編號 。\n\n## 主要發現\n\n- 標註資料的人力是持續性成本 [C2]。\n\n## 矛盾與不確定性\n\n- 設備商案例與調查對回收期的說法不同 [C3]。\n\n## 尚待研究\n\n- 法規要求仍待後續研究與確認。",
@@ -480,7 +481,7 @@
       "法規要求沒有資料"
      ],
      "followUps": [],
-     "createdAt": "2026-10-23T16:14:18Z",
+     "createdAt": "2026-10-23T17:41:23Z",
      "citations": {
       "C1": {
        "claimId": "c-1-1",
@@ -510,7 +511,8 @@
       "deadUrls": [
        "https://vendor.example.net/whitepaper"
       ]
-     }
+     },
+     "version": 1
     }
    }
   },
@@ -527,7 +529,7 @@
   {
    "type": "project.completed",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T16:14:18.967Z",
+   "ts": "2026-10-23T17:41:23.237Z",
    "data": {
     "stats": {
      "findings": 2,
@@ -535,7 +537,7 @@
      "uiReady": 0,
      "sources": 4,
      "claims": 3,
-     "elapsedSec": 0
+     "elapsedSec": 1
     }
    }
   }
@@ -547,9 +549,24 @@
    "topic": "AI 視覺檢測導入",
    "status": "completed",
    "parentProjectId": null,
-   "createdAt": "2026-10-23T16:14:18Z",
-   "updatedAt": "2026-10-23T16:14:18Z",
-   "findingCount": 2
+   "createdAt": "2026-10-23T17:41:22Z",
+   "updatedAt": "2026-10-23T17:41:23Z",
+   "findingCount": 2,
+   "version": 1,
+   "notify": false,
+   "completedAt": "2026-10-23T17:41:23Z",
+   "brief": {
+    "depth": "standard",
+    "startDate": "2025-01-01"
+   },
+   "stats": {
+    "findings": 2,
+    "edges": 3,
+    "uiReady": 0,
+    "sources": 4,
+    "claims": 3,
+    "elapsedSec": 1
+   }
   },
   "plan": [
    {
@@ -565,6 +582,7 @@
     "round": 1
    }
   ],
+  "proposedPlan": null,
   "requirements": [
    {
     "id": "q1",
@@ -778,7 +796,7 @@
     "score": 0.5,
     "duplicateOf": "d-9ca33f0e781c",
     "via": "direct",
-    "fetchedAt": "2026-10-23T16:14:18Z"
+    "fetchedAt": "2026-10-23T17:41:22Z"
    },
    {
     "docId": "d-9ca33f0e781c",
@@ -791,7 +809,7 @@
     "score": 0.5,
     "duplicateOf": null,
     "via": "direct",
-    "fetchedAt": "2026-10-23T16:14:18Z"
+    "fetchedAt": "2026-10-23T17:41:22Z"
    },
    {
     "docId": "d-a7cf0029d5b2",
@@ -804,7 +822,7 @@
     "score": 0.45,
     "duplicateOf": null,
     "via": "direct",
-    "fetchedAt": "2026-10-23T16:14:18Z"
+    "fetchedAt": "2026-10-23T17:41:22Z"
    },
    {
     "docId": "d-d7d761fa26fd",
@@ -817,7 +835,7 @@
     "score": 0.9,
     "duplicateOf": null,
     "via": "direct",
-    "fetchedAt": "2026-10-23T16:14:18Z"
+    "fetchedAt": "2026-10-23T17:41:22Z"
    }
   ],
   "coverage": {
@@ -844,7 +862,7 @@
      "claimIds": []
     }
    ],
-   "updatedAt": "2026-10-23T16:14:18Z"
+   "updatedAt": "2026-10-23T17:41:23Z"
   },
   "synthesis": {
    "report": "## 摘要\n\n多數廠商保留既有 AOI 設備並加上 AI 複判 [C1]。投資回收期的說法分歧 [C3]。這句話引用了一個根本不存在的主張編號 。\n\n## 主要發現\n\n- 標註資料的人力是持續性成本 [C2]。\n\n## 矛盾與不確定性\n\n- 設備商案例與調查對回收期的說法不同 [C3]。\n\n## 尚待研究\n\n- 法規要求仍待後續研究與確認。",
@@ -853,7 +871,7 @@
     "法規要求沒有資料"
    ],
    "followUps": [],
-   "createdAt": "2026-10-23T16:14:18Z",
+   "createdAt": "2026-10-23T17:41:23Z",
    "citations": {
     "C1": {
      "claimId": "c-1-1",
@@ -883,7 +901,11 @@
     "deadUrls": [
      "https://vendor.example.net/whitepaper"
     ]
-   }
-  }
+   },
+   "version": 1
+  },
+  "history": [],
+  "steering": [],
+  "qa": []
  }
 }

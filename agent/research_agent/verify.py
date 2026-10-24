@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from typing import Iterable, Optional
 
 MARKER = re.compile(r"\[C(\d{1,3})\]")
+LABEL = re.compile(r"^C[1-9][0-9]{0,2}$")
 _SENTENCE_END = re.compile(r"(?<=[。！？!?])|(?<=[.;；])(?=\s)")
 _CJK = re.compile(r"[぀-ヿ㐀-鿿豈-﫿＀-￯]")
 OPEN_SECTION_WORDS = ("尚待", "待研究", "限制", "未解", "未知", "open question", "limitation", "next step", "gaps", "further research")
@@ -32,6 +33,7 @@ class CatalogEntry:
     status: str
     independent: int
     quotes: list[dict]
+    updates: str = ""          # incremental runs: the earlier claim this one replaced
 
 
 def build_catalog(findings: Iterable[dict]) -> list[CatalogEntry]:
@@ -44,7 +46,7 @@ def build_catalog(findings: Iterable[dict]) -> list[CatalogEntry]:
                        "url": e.get("url", "")} for e in c.get("evidence", [])][:3]
             entries.append(CatalogEntry(label=f"C{len(entries) + 1}", claim_id=c["claimId"], finding_id=f["findingId"],
                                         text=c["text"], status=c["status"], independent=int(c.get("independentSources", 0)),
-                                        quotes=quotes))
+                                        quotes=quotes, updates=c.get("updates") or ""))
     return entries
 
 
@@ -52,10 +54,13 @@ def citations(catalog: list[CatalogEntry]) -> dict[str, dict]:
     return {e.label: {"claimId": e.claim_id, "findingId": e.finding_id} for e in catalog}
 
 
-def catalog_brief(catalog: list[CatalogEntry], max_chars: int = 60_000) -> str:
+def catalog_brief(catalog: list[CatalogEntry], max_chars: int = 60_000, marks: Optional[dict[str, dict]] = None) -> str:
+    """The claim catalog the writer sees. `marks` adds flags per label (an incremental run marks the
+    claims it found as new, and those that replaced an earlier claim as updated)."""
     rows = [{"label": e.label, "finding": "F" + e.finding_id.split("-", 1)[1], "status": e.status,
              "independentSources": e.independent, "claim": e.text,
-             "publishers": sorted({q["publisher"] for q in e.quotes if q["publisher"]})} for e in catalog]
+             "publishers": sorted({q["publisher"] for q in e.quotes if q["publisher"]}), **((marks or {}).get(e.label) or {})}
+            for e in catalog]
     return json.dumps(rows, ensure_ascii=False)[:max_chars]
 
 

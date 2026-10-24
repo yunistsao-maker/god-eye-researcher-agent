@@ -1,5 +1,106 @@
 [
   {
+    "name": "plan_propose",
+    "description": "Save a plan for the user to review before a draft project starts, and announce it to the UI.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Project id, e.g. p-20261022-1a2b3c4d"
+        },
+        "subQuestions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "findingId": {
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              },
+              "dataShape": {
+                "type": "string",
+                "description": "One of: comparison, timeline, metrics, list, other"
+              },
+              "round": {
+                "type": "integer",
+                "description": "1 for the initial plan, 2+ for follow-up rounds"
+              },
+              "version": {
+                "type": "integer",
+                "description": "The run this sub-question belongs to (incremental runs)"
+              },
+              "updates": {
+                "type": "string",
+                "description": "Incremental runs: the earlier findingId this sub-question re-researches"
+              }
+            }
+          }
+        },
+        "requirements": {
+          "type": "array",
+          "description": "What a complete answer must cover (explicit and implicit), at most 12",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "q1, q2, ..."
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "brief": {
+          "type": "object",
+          "description": "Research brief: depth (quick|standard|deep), audience, startDate (YYYY-MM-DD), includeDomains, excludeDomains, notes",
+          "properties": {
+            "depth": {
+              "type": "string"
+            },
+            "audience": {
+              "type": "string"
+            },
+            "startDate": {
+              "type": "string"
+            },
+            "includeDomains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "excludeDomains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
+        },
+        "by": {
+          "type": "string",
+          "description": "agent | user"
+        },
+        "_caller": {
+          "type": "string",
+          "description": "Set by the gateway from the caller's token. Leave empty."
+        }
+      },
+      "required": [
+        "projectId",
+        "subQuestions"
+      ]
+    }
+  },
+  {
     "name": "plan_save",
     "description": "Save the full research plan (all rounds) and announce it to the UI.",
     "inputSchema": {
@@ -27,6 +128,14 @@
               "round": {
                 "type": "integer",
                 "description": "1 for the initial plan, 2+ for follow-up rounds"
+              },
+              "version": {
+                "type": "integer",
+                "description": "The run this sub-question belongs to (incremental runs)"
+              },
+              "updates": {
+                "type": "string",
+                "description": "Incremental runs: the earlier findingId this sub-question re-researches"
               }
             }
           }
@@ -46,6 +155,13 @@
               }
             }
           }
+        },
+        "steerIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The user's directions this round applies"
         },
         "_caller": {
           "type": "string",
@@ -139,7 +255,11 @@
         },
         "citations": {
           "type": "object",
-          "description": "Maps each [C#] marker in the report to {claimId, findingId}"
+          "description": "Maps each [C#] marker to {claimId, findingId}"
+        },
+        "changes": {
+          "type": "object",
+          "description": "Incremental runs: {newClaims, updatedClaims}"
         },
         "verification": {
           "type": "object",
@@ -256,6 +376,10 @@
                   "text": {
                     "type": "string"
                   },
+                  "updates": {
+                    "type": "string",
+                    "description": "Incremental runs: the claimId of an earlier claim this one replaces"
+                  },
                   "evidence": {
                     "type": "array",
                     "items": {
@@ -300,6 +424,52 @@
       "required": [
         "projectId",
         "finding"
+      ]
+    }
+  },
+  {
+    "name": "qa_write",
+    "description": "Save the answer to a follow-up question about the report and announce it to the UI.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Project id, e.g. p-20261022-1a2b3c4d"
+        },
+        "qaId": {
+          "type": "string"
+        },
+        "question": {
+          "type": "string"
+        },
+        "selection": {
+          "type": "string"
+        },
+        "answer": {
+          "type": "string",
+          "description": "Markdown citing claims as [C#]"
+        },
+        "citations": {
+          "type": "object",
+          "description": "Maps each [C#] marker to {claimId, findingId}"
+        },
+        "needsResearch": {
+          "type": "boolean"
+        },
+        "researchQuestion": {
+          "type": "string"
+        },
+        "_caller": {
+          "type": "string",
+          "description": "Set by the gateway from the caller's token. Leave empty."
+        }
+      },
+      "required": [
+        "projectId",
+        "qaId",
+        "question",
+        "answer"
       ]
     }
   },
