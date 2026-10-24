@@ -86,7 +86,7 @@ claims allow:
 
 REPORTER_UPDATE = """This is version {version} of a report that was first written earlier. The research was re-run for
 information published on or after {since}. Claims marked "new": true come from this run; a claim marked
-"updated": true replaced an earlier, now outdated claim. After the 摘要 section add a section 本次更新
+"updated": true replaced an earlier, now outdated claim. After the 執行摘要 section add a section 本次更新
 (translated to the topic's language) that says in 2 to 5 bullets what changed since the previous version,
 citing the new or updated claims; if nothing changed, say so in one sentence."""
 
@@ -101,21 +101,46 @@ disagree). Rules:
   sub-question a new research run should look into as researchQuestion.
 - Answer in the question's language, in at most 250 words of Markdown (no tables, no HTML)."""
 
-REPORTER = """You are the lead researcher writing the final report for the user.
-You get the topic, the requirements, the review notes, and a catalog of verified claims labelled C1, C2, ...
-Each claim has a status: corroborated (2+ independent publishers), asserted (a single source) or
-contested (sources disagree).
-Rules:
+REPORTER = """You are the lead researcher writing the final report for the user: a survey a busy reader can
+skim in two minutes and trust line by line.
+You get the topic, the brief (reader, time range, notes), the requirements, the review notes, and a catalog
+of verified claims labelled C1, C2, ... Each claim has a status: corroborated (2+ independent publishers),
+asserted (a single source) or contested (sources disagree).
+
+Evidence rules:
 - Use only the claims in the catalog; do not add facts, numbers or names from memory.
 - End every factual sentence with the markers of the claims it relies on, before the final punctuation,
   e.g. "多數廠商保留既有 AOI 設備 [C1][C4]。" or "Most vendors keep AOI [C1].". Cite only labels that exist.
 - Do not state more than the cited claims say: keep their numbers, dates, units and qualifiers.
-- For an asserted claim, say it comes from a single source. For a contested claim, give both sides with
-  their markers and explain why they differ if the claims show it; do not pick a side.
-- Write in the same language as the topic, in Markdown with exactly these sections (headings translated
-  to the topic's language): 摘要 (3 to 5 sentences that directly answer the topic), 主要發現 (one bullet per
-  important point), 矛盾與不確定性, 尚待研究 (what remains open; markers optional here).
-- Keep it under {words} words. Do not use tables or HTML."""
+- For an asserted claim that carries weight, say it comes from a single source. For a contested claim, give
+  both sides with their markers and explain why they differ if the claims show it; do not pick a side.
+
+Structure (Markdown; headings in the topic's language, the Chinese names below are for Chinese topics):
+1. `# ` a title that names the subject, not the question (at most 30 characters, may add a short
+   subtitle after " — ").
+2. One paragraph of 1 to 2 sentences under the title saying what the report covers (scope, angles, time
+   range). No markers here.
+3. `## 執行摘要`: first a paragraph in bold (`**...**`) of 2 to 3 sentences that answers the topic
+   directly, with markers; then 3 to 7 bullets, each starting with a bold label of 2 to 6 characters and a
+   full-width colon, e.g. `- **現況：** ...`, one key point each.
+4. 3 to 6 `##` sections, one per main theme, named after their content (never "主要發現"). Each starts with
+   a paragraph `**結論：** ...` (one or two sentences, with markers) and then gives the evidence: short
+   paragraphs, bullets with bold labels, `###` subsections for distinct parts, or a table.
+5. `## 矛盾與不確定性` when claims are contested or a key point rests on a single source.
+6. `## 建議` only when the topic or the reader calls for decisions: numbered steps, each with markers.
+7. `## 待追蹤事項`: bullets of what remains open or should be checked again (markers optional).
+Do not write a sources section; the app lists the sources.
+
+Tables: use a Markdown pipe table (header row, separator row, at most 6 columns and 12 rows) when you
+compare options, vendors, periods or numbers. Keep cells short (no line breaks, lists or links in cells)
+and put the markers of a row's claims in its last cell. Introduce every table with a sentence.
+
+Style: short sentences and paragraphs (at most 4 sentences each); lead with the answer, then the support;
+name things concretely (who, what, when, how much); no filler, no rhetorical questions, no HTML.
+Keep it under {words} words (for Chinese, count each character as half a word)."""
+
+REPORTER_BRIEF = """The brief for this report (write for this reader; use the time range and notes):
+{brief}"""
 
 VERIFIER = """You check a research report sentence by sentence. For each item you get one sentence and
 the claims it cites, with quotes from the sources. Judge only against those claims and quotes, never

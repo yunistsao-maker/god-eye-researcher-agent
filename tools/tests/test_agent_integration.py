@@ -95,7 +95,7 @@ class ScriptedLlm:
         return ReviewDraft(contradictions=["F3 與 F4 對成效的說法不一致"], gaps=["缺少導入成本資料"],
                            followUps=self.follow_ups)
 
-    def report(self, topic, requirements, catalog, review, words=800, activity=None, on_text=None):
+    def report(self, topic, requirements, catalog, review, words=800, activity=None, on_text=None, brief=""):
         assert catalog.startswith("NO_VERIFIED_CLAIMS ")  # these drafts carry no claims: legacy [F#] report
         self.report_input = ["f-" + row["id"][1:] for row in json.loads(catalog[len("NO_VERIFIED_CLAIMS "):])]
         for chunk in REPORT_CHUNKS:

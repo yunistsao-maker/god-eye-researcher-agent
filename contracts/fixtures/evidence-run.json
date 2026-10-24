@@ -3,7 +3,7 @@
   {
    "type": "project.created",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T17:41:22.814Z",
+   "ts": "2026-10-24T07:36:40.767Z",
    "data": {
     "topic": "AI 視覺檢測導入",
     "parentProjectId": null,
@@ -23,7 +23,7 @@
   {
    "type": "plan.ready",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T17:41:22.822Z",
+   "ts": "2026-10-24T07:36:40.775Z",
    "data": {
     "subQuestions": [
      {
@@ -69,7 +69,7 @@
   {
    "type": "source.added",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T17:41:22.848Z",
+   "ts": "2026-10-24T07:36:40.799Z",
    "data": {
     "doc": {
      "docId": "d-d7d761fa26fd",
@@ -82,14 +82,14 @@
      "score": 0.9,
      "duplicateOf": null,
      "via": "direct",
-     "fetchedAt": "2026-10-23T17:41:22Z"
+     "fetchedAt": "2026-10-24T07:36:40Z"
     }
    }
   },
   {
    "type": "source.added",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T17:41:22.870Z",
+   "ts": "2026-10-24T07:36:40.825Z",
    "data": {
     "doc": {
      "docId": "d-9ca33f0e781c",
@@ -102,14 +102,14 @@
      "score": 0.5,
      "duplicateOf": null,
      "via": "direct",
-     "fetchedAt": "2026-10-23T17:41:22Z"
+     "fetchedAt": "2026-10-24T07:36:40Z"
     }
    }
   },
   {
    "type": "source.added",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T17:41:22.896Z",
+   "ts": "2026-10-24T07:36:40.850Z",
    "data": {
     "doc": {
      "docId": "d-6e3ec00dc2d0",
@@ -122,7 +122,7 @@
      "score": 0.5,
      "duplicateOf": "d-9ca33f0e781c",
      "via": "direct",
-     "fetchedAt": "2026-10-23T17:41:22Z"
+     "fetchedAt": "2026-10-24T07:36:40Z"
     }
    }
   },
@@ -139,7 +139,7 @@
   {
    "type": "finding.ready",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T17:41:22.956Z",
+   "ts": "2026-10-24T07:36:40.908Z",
    "data": {
     "finding": {
      "findingId": "f-1",
@@ -237,7 +237,7 @@
   {
    "type": "relation.added",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T17:41:22.956Z",
+   "ts": "2026-10-24T07:36:40.908Z",
    "data": {
     "entities": [
      {
@@ -268,7 +268,7 @@
   {
    "type": "source.added",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T17:41:22.990Z",
+   "ts": "2026-10-24T07:36:40.940Z",
    "data": {
     "doc": {
      "docId": "d-a7cf0029d5b2",
@@ -281,7 +281,7 @@
      "score": 0.45,
      "duplicateOf": null,
      "via": "direct",
-     "fetchedAt": "2026-10-23T17:41:22Z"
+     "fetchedAt": "2026-10-24T07:36:40Z"
     }
    }
   },
@@ -298,7 +298,7 @@
   {
    "type": "finding.ready",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T17:41:23.048Z",
+   "ts": "2026-10-24T07:36:40.994Z",
    "data": {
     "finding": {
      "findingId": "f-2",
@@ -373,7 +373,7 @@
   {
    "type": "relation.added",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T17:41:23.048Z",
+   "ts": "2026-10-24T07:36:40.994Z",
    "data": {
     "entities": [
      {
@@ -421,7 +421,7 @@
   {
    "type": "coverage.updated",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T17:41:23.057Z",
+   "ts": "2026-10-24T07:36:41.000Z",
    "data": {
     "round": 1,
     "requirements": [
@@ -446,7 +446,7 @@
       "claimIds": []
      }
     ],
-    "updatedAt": "2026-10-23T17:41:23Z"
+    "updatedAt": "2026-10-24T07:36:40Z"
    }
   },
   {
@@ -472,16 +472,16 @@
   {
    "type": "synthesis.ready",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T17:41:23.077Z",
+   "ts": "2026-10-24T07:36:41.015Z",
    "data": {
     "synthesis": {
-     "report": "## 摘要\n\n多數廠商保留既有 AOI 設備並加上 AI 複判 [C1]。投資回收期的說法分歧 [C3]。這句話引用了一個根本不存在的主張編號 。\n\n## 主要發現\n\n- 標註資料的人力是持續性成本 [C2]。\n\n## 矛盾與不確定性\n\n- 設備商案例與調查對回收期的說法不同 [C3]。\n\n## 尚待研究\n\n- 法規要求仍待後續研究與確認。",
+     "report": "# AI 視覺檢測導入 — 現況調查\n\n本報告整理 2025 年以來的導入方式、成本與回收期。\n\n## 執行摘要\n\n**多數廠商保留既有 AOI 設備並加上 AI 複判 [C1]。投資回收期的說法分歧 [C3]。這句話引用了一個根本不存在的主張編號。**\n\n- **成本：** 標註資料的人力是持續性成本 [C2]。\n\n## 回收期\n\n各方說法如下。\n\n| 來源 | 說法 | 主張 |\n| --- | --- | --- |\n| 設備商 | 單一產線六個月內回收 | [C3] |\n\n## 矛盾與不確定性\n\n- 設備商案例與調查對回收期的說法不同 [C3]。\n\n## 待追蹤事項\n\n- 法規要求仍待後續研究與確認。",
      "contradictions": [],
      "gaps": [
       "法規要求沒有資料"
      ],
      "followUps": [],
-     "createdAt": "2026-10-23T17:41:23Z",
+     "createdAt": "2026-10-24T07:36:41Z",
      "citations": {
       "C1": {
        "claimId": "c-1-1",
@@ -497,16 +497,16 @@
       }
      },
      "verification": {
-      "citedSentences": 5,
-      "supported": 3,
+      "citedSentences": 7,
+      "supported": 4,
       "partial": 1,
-      "unsupported": 1,
+      "unsupported": 2,
       "revised": 1,
-      "removed": 1,
+      "removed": 2,
       "uncitedSentences": 1,
       "unknownCitations": 1,
       "claimsCited": 3,
-      "precisionBefore": 0.6,
+      "precisionBefore": 0.571,
       "precisionAfter": 1.0,
       "deadUrls": [
        "https://vendor.example.net/whitepaper"
@@ -529,7 +529,7 @@
   {
    "type": "project.completed",
    "projectId": "p-20261024-0e0f0a0b",
-   "ts": "2026-10-23T17:41:23.237Z",
+   "ts": "2026-10-24T07:36:41.123Z",
    "data": {
     "stats": {
      "findings": 2,
@@ -549,12 +549,12 @@
    "topic": "AI 視覺檢測導入",
    "status": "completed",
    "parentProjectId": null,
-   "createdAt": "2026-10-23T17:41:22Z",
-   "updatedAt": "2026-10-23T17:41:23Z",
+   "createdAt": "2026-10-24T07:36:40Z",
+   "updatedAt": "2026-10-24T07:36:41Z",
    "findingCount": 2,
    "version": 1,
    "notify": false,
-   "completedAt": "2026-10-23T17:41:23Z",
+   "completedAt": "2026-10-24T07:36:41Z",
    "brief": {
     "depth": "standard",
     "startDate": "2025-01-01"
@@ -796,7 +796,7 @@
     "score": 0.5,
     "duplicateOf": "d-9ca33f0e781c",
     "via": "direct",
-    "fetchedAt": "2026-10-23T17:41:22Z"
+    "fetchedAt": "2026-10-24T07:36:40Z"
    },
    {
     "docId": "d-9ca33f0e781c",
@@ -809,7 +809,7 @@
     "score": 0.5,
     "duplicateOf": null,
     "via": "direct",
-    "fetchedAt": "2026-10-23T17:41:22Z"
+    "fetchedAt": "2026-10-24T07:36:40Z"
    },
    {
     "docId": "d-a7cf0029d5b2",
@@ -822,7 +822,7 @@
     "score": 0.45,
     "duplicateOf": null,
     "via": "direct",
-    "fetchedAt": "2026-10-23T17:41:22Z"
+    "fetchedAt": "2026-10-24T07:36:40Z"
    },
    {
     "docId": "d-d7d761fa26fd",
@@ -835,7 +835,7 @@
     "score": 0.9,
     "duplicateOf": null,
     "via": "direct",
-    "fetchedAt": "2026-10-23T17:41:22Z"
+    "fetchedAt": "2026-10-24T07:36:40Z"
    }
   ],
   "coverage": {
@@ -862,16 +862,16 @@
      "claimIds": []
     }
    ],
-   "updatedAt": "2026-10-23T17:41:23Z"
+   "updatedAt": "2026-10-24T07:36:40Z"
   },
   "synthesis": {
-   "report": "## 摘要\n\n多數廠商保留既有 AOI 設備並加上 AI 複判 [C1]。投資回收期的說法分歧 [C3]。這句話引用了一個根本不存在的主張編號 。\n\n## 主要發現\n\n- 標註資料的人力是持續性成本 [C2]。\n\n## 矛盾與不確定性\n\n- 設備商案例與調查對回收期的說法不同 [C3]。\n\n## 尚待研究\n\n- 法規要求仍待後續研究與確認。",
+   "report": "# AI 視覺檢測導入 — 現況調查\n\n本報告整理 2025 年以來的導入方式、成本與回收期。\n\n## 執行摘要\n\n**多數廠商保留既有 AOI 設備並加上 AI 複判 [C1]。投資回收期的說法分歧 [C3]。這句話引用了一個根本不存在的主張編號。**\n\n- **成本：** 標註資料的人力是持續性成本 [C2]。\n\n## 回收期\n\n各方說法如下。\n\n| 來源 | 說法 | 主張 |\n| --- | --- | --- |\n| 設備商 | 單一產線六個月內回收 | [C3] |\n\n## 矛盾與不確定性\n\n- 設備商案例與調查對回收期的說法不同 [C3]。\n\n## 待追蹤事項\n\n- 法規要求仍待後續研究與確認。",
    "contradictions": [],
    "gaps": [
     "法規要求沒有資料"
    ],
    "followUps": [],
-   "createdAt": "2026-10-23T17:41:23Z",
+   "createdAt": "2026-10-24T07:36:41Z",
    "citations": {
     "C1": {
      "claimId": "c-1-1",
@@ -887,16 +887,16 @@
     }
    },
    "verification": {
-    "citedSentences": 5,
-    "supported": 3,
+    "citedSentences": 7,
+    "supported": 4,
     "partial": 1,
-    "unsupported": 1,
+    "unsupported": 2,
     "revised": 1,
-    "removed": 1,
+    "removed": 2,
     "uncitedSentences": 1,
     "unknownCitations": 1,
     "claimsCited": 3,
-    "precisionBefore": 0.6,
+    "precisionBefore": 0.571,
     "precisionAfter": 1,
     "deadUrls": [
      "https://vendor.example.net/whitepaper"

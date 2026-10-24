@@ -200,11 +200,13 @@ class StrandsLlm:
 
     def report(self, topic: str, requirements: list[dict], catalog: str, review: Optional[ReviewDraft], words: int = 800,
                activity: Optional[AgentActivity] = None, on_text: Optional[Callable[[str], None]] = None,
-               steering: Optional[list[str]] = None, update: Optional[dict] = None) -> str:
+               steering: Optional[list[str]] = None, update: Optional[dict] = None, brief: str = "") -> str:
         """Writes the final Markdown report; each text token goes to `on_text` as it is generated.
         `steering` are the user's directions during the run; `update` ({version, since}) marks an
-        incremental run, whose report says what changed."""
+        incremental run, whose report says what changed; `brief` describes the reader and scope."""
         system = prompts.REPORTER.format(words=words)
+        if brief:
+            system += "\n\n" + prompts.REPORTER_BRIEF.format(brief=brief)
         if steering:
             system += "\n\n" + prompts.REPORTER_STEERING.format(steering="\n".join(f"- {t}" for t in steering))
         if update:
