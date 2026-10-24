@@ -3,11 +3,13 @@
 The writer sees every verified claim as C1, C2, ... with its status and independent-source count,
 and must end each factual sentence with the markers of the claims it relies on. Checking then works
 on sentences:
-  1. split the Markdown report into sentences, keeping headings and list markers;
+  1. split the Markdown report into sentences, keeping headings, list markers and bold labels
+     ("**結論：**"); a table row is one unit (its cells read as "header：cell");
   2. drop markers that name no claim (counted as unknownCitations);
   3. hand each cited sentence, with only the claims it cites, to an independent verifier;
   4. sentences judged unsupported or partial go to a reviser that rewrites them from their claims or
-     deletes them; rewritten ones are checked once more and deleted if they still fail.
+     deletes them; rewritten ones are checked once more and deleted if they still fail. Table rows
+     cannot be rewritten: an unsupported row is deleted, a partly supported one is kept.
 Everything here is pure so it is unit-tested without a model.
 """
 from __future__ import annotations
@@ -21,7 +23,9 @@ MARKER = re.compile(r"\[C(\d{1,3})\]")
 LABEL = re.compile(r"^C[1-9][0-9]{0,2}$")
 _SENTENCE_END = re.compile(r"(?<=[。！？!?])|(?<=[.;；])(?=\s)")
 _CJK = re.compile(r"[぀-ヿ㐀-鿿豈-﫿＀-￯]")
-OPEN_SECTION_WORDS = ("尚待", "待研究", "限制", "未解", "未知", "open question", "limitation", "next step", "gaps", "further research")
+OPEN_SECTION_WORDS = ("尚待", "待研究", "待追蹤", "限制", "未解", "未知", "open question", "limitation", "next step", "gaps",
+                      "further research", "follow-up", "to watch")
+TITLE_SECTION = "(title)"   # the title and the scope paragraph under it, which need no markers
 
 
 @dataclass
@@ -69,8 +73,8 @@ def catalog_brief(catalog: list[CatalogEntry], max_chars: int = 60_000, marks: O
 
 @dataclass
 class Block:
-    kind: str                     # heading | text | blank
-    prefix: str = ""              # list marker or heading hashes, kept verbatim
+    kind: str                     # heading | text | blank | table (header and separator rows) | row
+    prefix: str = ""              # list marker and bold label, kept verbatim
     sentences: list[str] = field(default_factory=list)
     section: str = ""             # the heading this block sits under
     raw: str = ""                 # headings and blanks are kept as-is
@@ -84,19 +88,41 @@ class Sentence:
     text: str
     labels: list[str]
     section: str
+    row: bool = False             # a table row: deleted when unsupported, never rewritten
 
 
-_LIST_PREFIX = re.compile(r"^(\s*(?:[-*+]|\d+[.)])\s+)")
+# A list marker and/or a bold label such as "**結論：**" or "**現況**：" belong to the line, not to its first sentence.
+_LIST_PREFIX = re.compile(r"^(\s*(?:(?:[-*+]|\d+[.)])\s+)?(?:\*\*[^*\n]{1,16}?(?:[：:]\*\*|\*\*[：:])\s*)?)")
+_TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
+_TABLE_SEP = re.compile(r"^\s*\|?(\s*:?-+:?\s*\|)+\s*(:?-+:?\s*)?\|?\s*$")
+
+
+def table_cells(line: str) -> list[str]:
+    body = line.strip()
+    body = body[1:] if body.startswith("|") else body
+    body = body[:-1] if body.endswith("|") and not body.endswith("\\|") else body
+    return [c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", body)]
+
+
+def _balance_bold(text: str) -> str:
+    """A deleted sentence can take one half of a bold span with it; the rest stays bold."""
+    if text.count("**") % 2 == 0:
+        return text
+    body = text.strip()
+    if body.endswith("**"):
+        return "**" + body
+    return body + "**"
 
 
 def split_sentences(text: str) -> list[str]:
     parts = [p for p in _SENTENCE_END.split(text) if p and p.strip()]
     out: list[str] = []
     for p in parts:
-        lead = re.match(r"^\s*((?:\[C\d{1,3}\])+)", p)
-        if lead and out:  # markers placed after the full stop belong to the previous sentence
+        lead = re.match(r"^\s*((?:\[C\d{1,3}\])+|\*\*|[」』）)])", p)
+        while lead and out:  # markers or closing marks after the full stop belong to the previous sentence
             out[-1] = out[-1].rstrip() + lead.group(1)
             p = p[lead.end():]
+            lead = re.match(r"^\s*((?:\[C\d{1,3}\])+|\*\*|[」』）)])", p)
         if p.strip():
             out.append(p.strip())
     return out
@@ -105,13 +131,27 @@ def split_sentences(text: str) -> list[str]:
 def parse_report(markdown: str) -> list[Block]:
     blocks: list[Block] = []
     section = ""
-    for line in markdown.splitlines():
+    lines = markdown.splitlines()
+    header: list[str] = []
+    for i, line in enumerate(lines):
         if not line.strip():
             blocks.append(Block("blank", raw=""))
             continue
         if line.lstrip().startswith("#"):
-            section = line.lstrip("# ").strip()
+            section = TITLE_SECTION if re.match(r"^\s*#(?!#)", line) else line.lstrip("# ").strip()
             blocks.append(Block("heading", raw=line, section=section))
+            continue
+        if _TABLE_ROW.match(line):
+            nxt = lines[i + 1] if i + 1 < len(lines) else ""
+            if _TABLE_SEP.match(line):
+                blocks.append(Block("table", raw=line, section=section))
+            elif _TABLE_SEP.match(nxt):
+                header = table_cells(line)
+                blocks.append(Block("table", raw=line, section=section))
+            else:
+                cells = table_cells(line)
+                text = "；".join(f"{h}：{c}" if h else c for h, c in zip(header + [""] * len(cells), cells) if c)
+                blocks.append(Block("row", raw=line, sentences=[text] if text else [], section=section))
             continue
         m = _LIST_PREFIX.match(line)
         prefix = m.group(1) if m else ""
@@ -130,11 +170,24 @@ def _join(sentences: list[str]) -> str:
 
 def render(blocks: list[Block]) -> str:
     lines: list[str] = []
-    for b in blocks:
+    i = 0
+    while i < len(blocks):
+        b = blocks[i]
+        if b.kind in ("table", "row"):
+            j = i
+            while j < len(blocks) and blocks[j].kind in ("table", "row"):
+                j += 1
+            group = blocks[i:j]
+            rows = [r for r in group if r.kind == "row"]
+            if not rows or any(r.sentences for r in rows):   # a table whose rows were all deleted goes too
+                lines.extend(r.raw for r in group if r.kind == "table" or r.sentences)
+            i = j
+            continue
         if b.kind != "text":
             lines.append(b.raw)
         elif b.sentences:
-            lines.append(b.prefix + _join(b.sentences))
+            lines.append(_balance_bold(b.prefix + _join(b.sentences)))
+        i += 1
     text = "\n".join(lines)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
@@ -142,19 +195,21 @@ def render(blocks: list[Block]) -> str:
 def sentences(blocks: list[Block]) -> list[Sentence]:
     out: list[Sentence] = []
     for bi, b in enumerate(blocks):
-        if b.kind != "text":
+        if b.kind not in ("text", "row"):
             continue
         for si, s in enumerate(b.sentences):
             out.append(Sentence(id=len(out) + 1, block=bi, index=si, text=s, labels=[f"C{n}" for n in MARKER.findall(s)],
-                                section=b.section))
+                                section=b.section, row=b.kind == "row"))
     return out
 
 
 def strip_unknown_markers(blocks: list[Block], known: set[str]) -> int:
     removed = 0
     for b in blocks:
-        if b.kind != "text":
+        if b.kind not in ("text", "row"):
             continue
+        if b.kind == "row":   # rows render from their raw line
+            b.raw = MARKER.sub(lambda m: m.group(0) if f"C{m.group(1)}" in known else "", b.raw)
         for i, s in enumerate(b.sentences):
             def keep(m: re.Match) -> str:
                 nonlocal removed
@@ -162,11 +217,17 @@ def strip_unknown_markers(blocks: list[Block], known: set[str]) -> int:
                     return m.group(0)
                 removed += 1
                 return ""
-            b.sentences[i] = MARKER.sub(keep, s)
+            before = removed
+            fixed = MARKER.sub(keep, s)
+            if removed > before:   # no space left before the punctuation the marker preceded
+                fixed = re.sub(r"\s+([。！？，；：.!?,;:])", r"\1", fixed).strip()
+            b.sentences[i] = fixed
     return removed
 
 
 def is_open_section(section: str) -> bool:
+    if section == TITLE_SECTION:
+        return True
     low = section.lower()
     return any(w in low for w in OPEN_SECTION_WORDS)
 
@@ -200,6 +261,8 @@ def apply_edits(blocks: list[Block], sents: list[Sentence], edits: dict[int, Opt
         if text is None or not MARKER.sub("", text).strip():
             deletions.append((s.block, s.index))
             removed += 1
+            continue
+        if s.row:   # a table row is kept or deleted, never rewritten
             continue
         cleaned = MARKER.sub(lambda m: m.group(0) if f"C{m.group(1)}" in known else "", text.strip())
         blocks[s.block].sentences[s.index] = cleaned

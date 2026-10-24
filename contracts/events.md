@@ -79,6 +79,17 @@ The report cites claims as `[C1]`, `[C2]` … (one claim per bracket, `[C1][C3]`
 `citations` maps each label to `{ "claimId", "findingId" }`. `verification` is the sentence-level
 check (see "Evidence" below). Reports written without verified claims have neither.
 
+Report layout (what the reader renders specially; older reports without it still render):
+
+- `# Title` and the paragraph under it: the report's title and its scope line (no citations needed).
+- `## 執行摘要` (or `Executive summary`): a bold paragraph that answers the topic, then bullets that start
+  with a bold label (`- **現況：** …`).
+- Theme sections, each starting with a `**結論：** …` (or `**Bottom line:**`) paragraph.
+- Markdown pipe tables (header row and separator row); a row's citations sit in its cells. The sentence
+  check treats a row as one unit: an unsupported row is deleted, never rewritten.
+- `## 矛盾與不確定性`, `## 建議`, `## 待追蹤事項` (open questions; citations optional). No sources
+  section: clients list the sources from `docs`.
+
 `Edge` = `{ "from": nodeId, "to": nodeId, "type": EdgeType, "via"?: entityId }`.
 Node ids are finding ids (`f-…`) or entity ids (`e-…`).
 
@@ -211,8 +222,8 @@ to end users, which the finding cards do (`sources[].url`).
 ```
 
 Everything after `parentProjectId` is optional (the research brief). `depth` is `quick` (2–3
-sub-questions, no follow-up round, ~450-word report), `standard` (3–5, one follow-up round, ~800 words)
-or `deep` (4–7, two follow-up rounds, ~1 500 words). `startDate` (`YYYY-MM-DD`) and the domain lists
+sub-questions, no follow-up round, ~600-word report), `standard` (3–5, one follow-up round, ~1 100 words)
+or `deep` (4–7, two follow-up rounds, ~2 000 words; a Chinese character counts as half a word). `startDate` (`YYYY-MM-DD`) and the domain lists
 steer searches; `audience` and `notes` shape the plan and the report.
 
 Returns at once with `{ "projectId", "status": "accepted" }`; progress arrives as AppSync events.

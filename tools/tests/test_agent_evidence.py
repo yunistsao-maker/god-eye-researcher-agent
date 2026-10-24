@@ -117,14 +117,19 @@ class EvidenceLlm:
                                      CoverageDraft(requirementId="q9", status="covered")],
                            gaps=["法規要求沒有資料"])
 
-    def report(self, topic, requirements, catalog, review, words=800, activity=None, on_text=None):
+    def report(self, topic, requirements, catalog, review, words=800, activity=None, on_text=None, brief=""):
         self.report_catalog = json.loads(catalog)
+        self.report_brief = brief
         label = {row["claim"]: row["label"] for row in self.report_catalog}
         aoi, labour, payback = label["多數廠商保留 AOI 設備並加上 AI 複判"], label["標註資料的人力是持續性成本"], label["設備商宣稱單一產線六個月內回收"]
-        text = (f"## 摘要\n\n多數廠商保留既有 AOI 設備並加上 AI 複判 [{aoi}]。投資回收期的說法分歧 [{payback}]。"
-                f"這句話引用了一個根本不存在的主張編號 [C99]。\n\n## 主要發現\n\n- 標註資料的人力是持續性成本 [{labour}]。\n"
-                f"- 回收期一定少於三個月 [{payback}]。\n\n## 矛盾與不確定性\n\n- 設備商案例與調查的回收期完全一致 [{payback}]。\n\n"
-                "## 尚待研究\n\n- 法規要求仍待後續研究與確認。")
+        text = (f"# AI 視覺檢測導入 — 現況調查\n\n本報告整理 2025 年以來的導入方式、成本與回收期。\n\n"
+                f"## 執行摘要\n\n**多數廠商保留既有 AOI 設備並加上 AI 複判 [{aoi}]。投資回收期的說法分歧 [{payback}]。"
+                f"這句話引用了一個根本不存在的主張編號 [C99]。**\n\n- **成本：** 標註資料的人力是持續性成本 [{labour}]。\n\n"
+                f"## 回收期\n\n**結論：** 回收期一定少於三個月 [{payback}]。\n\n各方說法如下。\n\n"
+                f"| 來源 | 說法 | 主張 |\n| --- | --- | --- |\n| 設備商 | 單一產線六個月內回收 | [{payback}] |\n"
+                f"| 調查 | 回收期一定少於三個月 | [{payback}] |\n\n"
+                f"## 矛盾與不確定性\n\n- 設備商案例與調查的回收期完全一致 [{payback}]。\n\n"
+                "## 待追蹤事項\n\n- 法規要求仍待後續研究與確認。")
         if on_text:
             on_text(text)
         return text
@@ -179,13 +184,17 @@ def test_evidence_run_end_to_end(wired):
     report = syn["report"]
     assert "一定少於三個月" not in report and "完全一致" not in report and "[C99]" not in report and "[C42]" not in report
     assert "設備商案例與調查對回收期的說法不同" in report
+    assert "| 設備商 | 單一產線六個月內回收 |" in report and "**結論：**" not in report   # row kept; emptied lead dropped
+    assert "主張編號。**" in report and report.count("**") % 2 == 0
     assert set(syn["citations"]) == set(re.findall(r"\[(C\d+)\]", report))
     ver = syn["verification"]
-    assert ver == {**ver, "citedSentences": 5, "supported": 3, "partial": 1, "unsupported": 1, "revised": 1, "removed": 1,
-                   "unknownCitations": 1, "uncitedSentences": 1, "precisionBefore": 0.6, "precisionAfter": 1.0}
+    assert ver == {**ver, "citedSentences": 7, "supported": 4, "partial": 1, "unsupported": 2, "revised": 1, "removed": 2,
+                   "unknownCitations": 1, "uncitedSentences": 1, "precisionBefore": 0.571, "precisionAfter": 1.0}
     assert ver["deadUrls"] == [VENDOR] and ver["claimsCited"] == 3
     assert len(llm.verify_calls) == 2 and len(llm.verify_calls[1]) == 1    # the rewrite was checked once more
     assert all("allowedLabels" in it and it["claims"] for it in llm.revise_items)
+    assert not any("｜" in it["sentence"] or "說法：" in it["sentence"] for it in llm.revise_items)   # rows are never rewritten
+    assert "2025-01-01" in llm.report_brief
 
     kinds = [e["type"] for e in published]
     assert kinds.count("source.added") == 4 and "coverage.updated" in kinds
@@ -233,6 +242,32 @@ def test_sentence_split_keeps_markers_with_their_sentence():
     revised, removed = v.apply_edits(blocks, sents, {1: "甲改寫 [C1][C5]。", 2: None}, {"C1"})
     assert (revised, removed) == (1, 1)
     assert v.render(blocks) == "## 摘要\n\n- 甲改寫 [C1]。\n\n## 尚待研究\n\n- 還不知道的事情需要後續的研究來確認。"
+
+
+def test_report_structure_labels_tables_and_title():
+    md = ("# 標題 — 副標\n\n本報告涵蓋三個面向，資料到 2026 年為止。\n\n## 執行摘要\n\n**第一句 [C1]。第二句 [C2]。**\n\n"
+          "- **現況：** 甲 [C1]。\n\n## 成本\n\n**結論：** 乙 [C9]。丙 [C2]。\n\n| 項目 | 金額 |\n| --- | ---: |\n"
+          "| 相機 | 30 萬 [C1] |\n| 標註 | 每月 5 萬 [C2] |\n\n## 待追蹤事項\n\n- 還有一件事情需要再確認一次才知道。")
+    blocks = v.parse_report(md)
+    assert v.strip_unknown_markers(blocks, {"C1", "C2"}) == 1
+    sents = v.sentences(blocks)
+    by_text = {s.text: s for s in sents}
+    assert not v.needs_citation(sents[0])                      # the scope paragraph under the title
+    assert "**第一句 [C1]。" in by_text and "第二句 [C2]。**" in by_text   # closing bold stays with its sentence
+    assert "甲 [C1]。" in by_text and "乙。" in by_text           # bold labels are prefixes, not sentence text
+    rows = [s for s in sents if s.row]
+    assert [r.text for r in rows] == ["項目：相機；金額：30 萬 [C1]", "項目：標註；金額：每月 5 萬 [C2]"]
+    first = by_text["**第一句 [C1]。"]
+    revised, removed = v.apply_edits(blocks, sents, {first.id: None, rows[0].id: "改寫的列 [C1]", rows[1].id: None,
+                                                     by_text["乙。"].id: None, by_text["丙 [C2]。"].id: None}, {"C1", "C2"})
+    assert (revised, removed) == (0, 4)                         # a row is never rewritten
+    out = v.render(blocks)
+    assert "**第二句 [C2]。**" in out                             # the rest of a bold span stays bold
+    assert "**結論：**" not in out                                # a lead whose sentences all went is dropped
+    assert "| 相機 | 30 萬 [C1] |" in out and "標註" not in out
+    every_row_gone = v.parse_report("## 甲\n\n| a | b |\n| --- | --- |\n| x | y [C1] |\n\n文字 [C1]。")
+    v.apply_edits(every_row_gone, v.sentences(every_row_gone), {1: None}, {"C1"})
+    assert v.render(every_row_gone) == "## 甲\n\n文字 [C1]。"     # a table without rows goes entirely
 
 
 def test_search_merge_dedupes_and_caps_per_publisher():

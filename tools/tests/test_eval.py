@@ -32,8 +32,8 @@ def test_metrics_from_an_evidence_run():
     assert m["claims"] == 3 and m["claimsCorroborated"] == 1 and m["claimsContested"] == 1
     assert m["sources"] == 4 and m["duplicates"] == 1 and m["publishers"] == 4
     assert m["coverageShare"] == 0.333 and m["requirementsMissing"] == 1
-    assert m["citationPrecisionBefore"] == 0.6 and m["citationPrecisionAfter"] == 1.0 and m["deadUrls"] == 1
-    assert m["citedSentenceShare"] == 0.8 and m["reportWords"] > 20
+    assert m["citationPrecisionBefore"] == 0.571 and m["citationPrecisionAfter"] == 1.0 and m["deadUrls"] == 1
+    assert m["citedSentenceShare"] == 0.833 and m["reportWords"] > 20
 
 
 def test_judge_parses_verdicts_and_fails_missing_ones():

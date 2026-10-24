@@ -31,7 +31,7 @@ export function renderInline(list: Inline[], cite: CiteRenderer = plainCite): Re
         const tail = next && next.t === 'text' ? CLOSING.exec(next.v)?.[0] ?? '' : '';
         out.push(
           <span key={i} className="cite-run">
-            {run}
+            <span className="cite-refs">{run}</span>
             {tail}
           </span>,
         );
@@ -63,20 +63,52 @@ export function renderInline(list: Inline[], cite: CiteRenderer = plainCite): Re
 
 const Caret = () => <span className="caret" aria-hidden="true" />;
 
+/** A pipe table; cells hold inline markdown (citations included). */
+export function MdTable({ b, cite }: { b: Extract<Block, { t: 'table' }>; cite?: CiteRenderer }) {
+  return (
+    <table>
+      <thead>
+        <tr>
+          {b.head.map((c, i) => (
+            <th key={i} scope="col" style={b.align[i] ? { textAlign: b.align[i]! } : undefined}>
+              {renderInline(c, cite)}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {b.rows.map((row, r) => (
+          <tr key={r}>
+            {row.map((c, i) => (
+              <td key={i} style={b.align[i] ? { textAlign: b.align[i]! } : undefined}>
+                {renderInline(c, cite)}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function renderBlock(b: Block, key: number, caret: boolean, cite?: CiteRenderer): ReactNode {
   const tail = caret ? <Caret /> : null;
   switch (b.t) {
-    case 'h':
-      return b.level === 3 ? (
-        <h3 key={key}>
+    case 'h': {
+      const Tag = b.level === 2 ? 'h2' : b.level === 3 ? 'h3' : 'h4';
+      return (
+        <Tag key={key}>
           {renderInline(b.c, cite)}
           {tail}
-        </h3>
-      ) : (
-        <h4 key={key}>
-          {renderInline(b.c, cite)}
+        </Tag>
+      );
+    }
+    case 'table':
+      return (
+        <div key={key} className="md-table">
+          <MdTable b={b} cite={cite} />
           {tail}
-        </h4>
+        </div>
       );
     case 'p':
       return (

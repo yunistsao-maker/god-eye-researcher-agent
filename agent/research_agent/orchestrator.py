@@ -69,7 +69,7 @@ class Llm(Protocol):
                activity: Optional[AgentActivity] = None, steering: Optional[list[str]] = None) -> ReviewDraft: ...
     def report(self, topic: str, requirements: list[dict], catalog: str, review: Optional[ReviewDraft], words: int = 800,
                activity: Optional[AgentActivity] = None, on_text: Optional[Callable[[str], None]] = None,
-               steering: Optional[list[str]] = None, update: Optional[dict] = None) -> str: ...
+               steering: Optional[list[str]] = None, update: Optional[dict] = None, brief: str = "") -> str: ...
     def answer(self, question: str, selection: str, report: str, catalog: str,
                activity: Optional[AgentActivity] = None) -> AnswerDraft: ...
     def verify(self, items: list[dict], activity: Optional[AgentActivity] = None) -> VerifyDraft: ...
@@ -86,7 +86,7 @@ class Settings:
     attempts: int = 2           # an LLM step that stalls is retried once
     searches_per_agent: int = 6
     reads_per_agent: int = 8
-    report_words: int = 800
+    report_words: int = 1100
     verify: bool = True
     check_links: bool = True
 
@@ -94,10 +94,10 @@ class Settings:
     def for_depth(cls, depth: str) -> "Settings":
         if depth == "quick":
             return cls(max_parallel=3, min_subquestions=2, max_subquestions=3, follow_up_rounds=0, max_follow_ups=0,
-                       searches_per_agent=3, reads_per_agent=4, report_words=450)
+                       searches_per_agent=3, reads_per_agent=4, report_words=600)
         if depth == "deep":
             return cls(max_parallel=6, min_subquestions=4, max_subquestions=7, follow_up_rounds=2, max_follow_ups=4,
-                       searches_per_agent=8, reads_per_agent=12, report_words=1500)
+                       searches_per_agent=8, reads_per_agent=12, report_words=2000)
         return cls()
 
 
@@ -400,7 +400,7 @@ class Orchestrator:
                 raise RuntimeError("No sub-question produced a valid finding")
             subs, findings, review, follow_ups_total = self._rounds(project_id, topic, subs, findings, requirements, brief, sup,
                                                                    self.settings.follow_up_rounds)
-            self._write_synthesis(project_id, topic, findings, requirements, review, sup)
+            self._write_synthesis(project_id, topic, findings, requirements, review, sup, brief=brief)
             sup.set_phase("done")
             self._call("project-tools", "project_save", projectId=project_id, status="completed")
             return {"projectId": project_id, "findings": len(findings), "followUps": follow_ups_total,
@@ -535,7 +535,7 @@ class Orchestrator:
             changes = {"newClaims": sum(1 for c in new_claims if not c.get("updates")),
                        "updatedClaims": sum(1 for c in new_claims if c.get("updates"))}
             self._write_synthesis(project_id, topic, findings, requirements, review, sup,
-                                  update={"version": version, "since": since, "fresh": fresh_ids, "changes": changes})
+                                  update={"version": version, "since": since, "fresh": fresh_ids, "changes": changes}, brief=brief)
             sup.set_phase("done")
             self._call("project-tools", "project_save", projectId=project_id, status="completed")
             return {"projectId": project_id, "version": version, "findings": len(fresh), "followUps": follow_ups,
@@ -663,7 +663,8 @@ class Orchestrator:
 
     # --- writing and verification -----------------------------------------------------------------
     def _write_synthesis(self, project_id: str, topic: str, findings: list[dict], requirements: list[dict],
-                         review: Optional[ReviewDraft], sup: AgentActivity, update: Optional[dict] = None) -> None:
+                         review: Optional[ReviewDraft], sup: AgentActivity, update: Optional[dict] = None,
+                         brief: Optional[Brief] = None) -> None:
         self.stop.check()
         sup.set_phase("reporting")
         catalog = v.build_catalog(findings)
@@ -679,6 +680,8 @@ class Orchestrator:
             extra["steering"] = steering
         if update:
             extra["update"] = {"version": update.get("version"), "since": update.get("since")}
+        if brief and (brief.audience or brief.start_date or brief.notes):
+            extra["brief"] = brief.describe()
         try:
             report = self._supervised(sup, lambda act: self.llm.report(
                 topic, requirements, claims_text, review, self.settings.report_words, act, on_text=self.on_report_text, **extra))
@@ -735,16 +738,20 @@ class Orchestrator:
         stats.update(counts)
         stats["precisionBefore"] = round(counts["supported"] / len(cited), 3)
         flagged = [s for s in cited if verdicts.get(s.id, ("supported", ""))[0] != "supported"]
-        edits: dict[int, Optional[str]] = {}
+        # Table rows cannot be rewritten: an unsupported row goes, a partly supported one stays as written.
+        rows = [s for s in flagged if s.row]
+        flagged = [s for s in flagged if not s.row]
+        edits: dict[int, Optional[str]] = {s.id: None for s in rows if verdicts[s.id][0] == "unsupported"}
         fixed_ok = 0
         if flagged:
             try:
-                edits, fixed_ok = self._revise(flagged, verdicts, by_label, sup)
+                revised_edits, fixed_ok = self._revise(flagged, verdicts, by_label, sup)
             except ResearchStopped:
                 raise
             except Exception:  # noqa: BLE001
                 log.exception("revision failed; deleting unsupported sentences instead")
-                edits = {s.id: None for s in flagged if verdicts[s.id][0] == "unsupported"}
+                revised_edits = {s.id: None for s in flagged if verdicts[s.id][0] == "unsupported"}
+            edits.update(revised_edits)
         revised, removed = v.apply_edits(blocks, sents, edits, known)
         stats["revised"], stats["removed"] = revised, removed
         remaining = len(cited) - removed

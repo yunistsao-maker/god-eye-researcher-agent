@@ -1,22 +1,52 @@
 /*
- * 報告閱讀器: a table of contents with the strength of each section, the report in a serif reading
- * column with numbered citations, and an evidence margin beside every paragraph. A citation opens the
- * quote it rests on (and links to the highlighted passage on the page). Below: limits, sources, earlier
- * versions, and follow-up questions answered only from this report's claims.
+ * 報告閱讀器. Reading mode (the default) is laid out like a research survey: a title, the scope line,
+ * a byline, an executive summary (the bottom line, then labelled key points), and sections that open
+ * with their conclusion, with tables where the report compares things. Citations are small numbers;
+ * one opens the quote it rests on and links to the highlighted passage. 查證模式 adds the evidence
+ * margin, coloured citations and the sentence check. Below: sources grouped by kind, earlier versions,
+ * and follow-up questions answered only from this report's claims.
  */
-import { Fragment, useCallback, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Fragment, useCallback, useMemo, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from 'react';
 import { Bars, BarsFor, MarkLegend } from '../components/Bars';
-import { Markdown, renderInline, type CiteRenderer } from '../components/Markdown';
+import { Markdown, MdTable, renderInline, type CiteRenderer } from '../components/Markdown';
 import { SourceList } from '../components/Sources';
 import { useNow } from '../components/useNow';
-import { CLAIM_STATUS_LABEL, STRENGTH_LABEL, pct, quoteHref, relTime, strengthLine, strengthOf, ymd, type StrengthSummary } from '../lib/evidence';
+import { CLAIM_STATUS_LABEL, STRENGTH_LABEL, TYPE_GROUP_LABEL, pct, quoteHref, relTime, strengthLine, strengthOf, typeGroup, ymd, type StrengthSummary } from '../lib/evidence';
 import { parseInline, parseMarkdown, type Block, type Inline } from '../lib/markdown';
+import { DEPTH_NAME } from '../lib/progress';
 import { navigate, projectPath } from '../router';
 import { claimIndex, sourceTypeLabel, type ClaimRef, type ResearchState } from '../state';
-import type { CitationRef, Claim, Verification } from '../types';
+import type { CitationRef, Claim, SourceDoc, Verification } from '../types';
 import type { ScreenProps } from '../workspace';
 
+type Mode = 'read' | 'verify';
+const MODE_KEY = 'godeye.reportMode';
+
+function loadMode(): Mode {
+  try {
+    return window.localStorage.getItem(MODE_KEY) === 'verify' ? 'verify' : 'read';
+  } catch {
+    return 'read';
+  }
+}
+function saveMode(m: Mode) {
+  try {
+    window.localStorage.setItem(MODE_KEY, m);
+  } catch {
+    /* private mode: the choice lasts for this visit */
+  }
+}
+
 const SUMMARY_HEADING = /摘要|總結|summary/i;
+/** Sections that already discuss limits and open questions (then the review's lists are not repeated). */
+const OPEN_HEADING = /矛盾|不確定|限制|待追蹤|尚待|未解|limitation|uncertaint|open question|follow-up|to watch/i;
+const TAKEAWAY = /^(結論|小結|重點|bottom line|key takeaway|takeaway)\s*[：:]?$/i;
+
+/* ---------------- reading the report's structure ---------------- */
+
+function plainText(list: Inline[]): string {
+  return list.map((n) => (n.t === 'text' || n.t === 'code' ? n.v : n.t === 'a' ? n.v : n.t === 'b' ? plainText(n.c) : '')).join('');
+}
 
 function labelsIn(list: Inline[], out: string[] = []): string[] {
   for (const n of list) {
@@ -27,35 +57,94 @@ function labelsIn(list: Inline[], out: string[] = []): string[] {
 }
 
 function blockLabels(b: Block): string[] {
+  if (b.t === 'table') return [...b.head, ...b.rows.flat()].flatMap((c) => labelsIn(c));
   if ('items' in b) return b.items.flatMap((it) => labelsIn(it));
   return labelsIn(b.c);
 }
 
-function plainText(list: Inline[]): string {
-  return list.map((n) => (n.t === 'text' || n.t === 'code' ? n.v : n.t === 'a' ? n.v : n.t === 'b' ? plainText(n.c) : '')).join('');
+/** Drops leading whitespace and a colon left after a bold label. */
+function trimLead(list: Inline[]): Inline[] {
+  const out = list.slice();
+  while (out.length && out[0].t === 'text') {
+    const v = (out[0] as { v: string }).v.replace(/^[\s：:]+/, '');
+    if (v) {
+      out[0] = { t: 'text', v };
+      break;
+    }
+    out.shift();
+  }
+  return out;
+}
+
+/** "**結論：** …" → the label and the rest; also "**現況：** …" in a list item (short labels only). */
+function leadLabel(c: Inline[], pattern?: RegExp): { label: string; rest: Inline[] } | null {
+  const first = c[0];
+  if (!first || first.t !== 'b') return null;
+  const raw = plainText(first.c).trim();
+  const next = c[1];
+  const colonAfter = next?.t === 'text' && /^\s*[：:]/.test(next.v);
+  if (!/[：:]$/.test(raw) && !colonAfter) return null;
+  const label = raw.replace(/[：:]$/, '').trim();
+  if (!label || Array.from(label).length > 14 || (pattern && !pattern.test(label))) return null;
+  return { label, rest: trimLead(c.slice(1)) };
+}
+
+/** A paragraph that is bold as a whole (citations included): the executive summary's bottom line. */
+function boldParagraph(b: Block): Inline[] | null {
+  if (b.t !== 'p' || !b.c.length || b.c[0].t !== 'b') return null;
+  const rest = b.c.slice(1);
+  if (!rest.every((n) => n.t === 'cite' || (n.t === 'text' && /^[\s。．.!！?？]*$/.test(n.v)))) return null;
+  return [...b.c[0].c, ...rest];
 }
 
 interface Section {
   id: string;
   title: string;
-  heading: Block | null;
   blocks: { block: Block; index: number }[];
 }
 
-function sectionsOf(blocks: Block[]): Section[] {
-  const out: Section[] = [];
-  let cur: Section = { id: 'sec-0', title: '', heading: null, blocks: [] };
-  blocks.forEach((b, index) => {
-    if (b.t === 'h' && b.level === 3) {
-      if (cur.heading || cur.blocks.length) out.push(cur);
-      cur = { id: `sec-${out.length + 1}`, title: plainText(b.c), heading: b, blocks: [] };
-    } else {
-      cur.blocks.push({ block: b, index });
+interface Doc {
+  title: string;
+  dek: Inline[] | null;
+  sections: Section[];
+}
+
+function docOf(blocks: Block[], topic: string): Doc {
+  let title = topic;
+  let dek: Inline[] | null = null;
+  const sections: Section[] = [];
+  let cur: Section = { id: 'sec-0', title: '', blocks: [] };
+  let start = 0;
+  if (blocks[0]?.t === 'h' && blocks[0].level === 2) {
+    title = plainText(blocks[0].c) || topic;
+    start = 1;
+  }
+  for (let index = start; index < blocks.length; index++) {
+    const b = blocks[index];
+    if (b.t === 'h' && b.level <= 3) {
+      if (cur.title || cur.blocks.length) sections.push(cur);
+      cur = { id: `sec-${sections.length + 1}`, title: plainText(b.c), blocks: [] };
+      continue;
     }
-  });
-  if (cur.heading || cur.blocks.length) out.push(cur);
+    // The first paragraph under the title (before any section) is the scope line.
+    if (!dek && !sections.length && !cur.title && !cur.blocks.length && b.t === 'p' && start === 1) {
+      dek = b.c;
+      continue;
+    }
+    cur.blocks.push({ block: b, index });
+  }
+  if (cur.title || cur.blocks.length) sections.push(cur);
+  return { title, dek, sections };
+}
+
+/** Citation labels numbered 1, 2, … in order of first use. */
+function citeNumbers(blocks: Block[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const b of blocks) for (const l of blockLabels(b)) if (!out.has(l)) out.set(l, out.size + 1);
   return out;
 }
+
+/* ---------------- pieces ---------------- */
 
 function VerificationBar({ v }: { v: Verification }) {
   const items: [string, number, string][] = [
@@ -99,7 +188,12 @@ function VerificationBar({ v }: { v: Verification }) {
   );
 }
 
-/* ---------------- citation card ---------------- */
+/** One line for reading mode: how much of the report was checked against its sources. */
+function checkLine(v: Verification): string {
+  const fixes = [v.revised ? `修正 ${v.revised} 句` : '', v.removed ? `刪除 ${v.removed} 句` : ''].filter(Boolean).join('、');
+  const precision = v.precisionAfter ?? v.precisionBefore;
+  return `已逐句查核 ${v.citedSentences} 句引用${precision != null ? `，引用精確度 ${pct(precision)}` : ''}${fixes ? `（${fixes}）` : ''}`;
+}
 
 interface OpenCite {
   block: number;
@@ -107,14 +201,15 @@ interface OpenCite {
   idx: number;
 }
 
-function CiteCard({ refd, label, idx, setIdx, onClose, state }: { refd: ClaimRef; label: string; idx: number; setIdx: (i: number) => void; onClose: () => void; state: ResearchState }) {
+function CiteCard({ refd, num, idx, setIdx, onClose, state }: { refd: ClaimRef; num: number; idx: number; setIdx: (i: number) => void; onClose: () => void; state: ResearchState }) {
   const c = refd.claim;
   const ev = c.evidence[Math.min(idx, c.evidence.length - 1)];
   const doc = state.docs.find((d) => d.docId === ev?.docId);
   const href = ev ? quoteHref(ev.url, ev.quote) : null;
   return (
-    <div className="panel citecard rise" role="region" aria-label={`引用 ${label.slice(1)}`}>
+    <div className="panel citecard rise" role="region" aria-label={`引用 ${num}`}>
       <div className="hd">
+        <span className="n">{num}</span>
         <b>{ev?.title || ev?.publisher || '來源'}</b>
         <span className="muted small num">
           {Math.min(idx, c.evidence.length - 1) + 1}／{c.evidence.length}
@@ -176,6 +271,37 @@ function ConflictBox({ claim }: { claim: Claim }) {
         </div>
       </div>
       <p className="small">兩種說法都列出來，不替你選邊；差異常來自範圍、時間或計算方式不同。</p>
+    </div>
+  );
+}
+
+/** Sources grouped by kind, like a survey's reference list; 查證模式 shows the scored list instead. */
+function SourcesByKind({ docs }: { docs: SourceDoc[] }) {
+  const originals = docs.filter((d) => !d.duplicateOf).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  const groups = (['primary', 'research', 'news', 'other'] as const)
+    .map((g) => [g, originals.filter((d) => typeGroup(d.sourceType) === g)] as const)
+    .filter(([, list]) => list.length);
+  return (
+    <div className="refgroups">
+      {groups.map(([g, list]) => (
+        <div key={g} className="refgroup">
+          <h3>{TYPE_GROUP_LABEL[g]}</h3>
+          <ul>
+            {list.map((d) => (
+              <li key={d.docId}>
+                <a href={d.url} target="_blank" rel="noopener noreferrer">
+                  {d.title || d.publisher}
+                </a>
+                <span className="refmeta">
+                  {d.publisher}
+                  {d.publishedDate ? ` · ${d.publishedDate}` : ''}
+                  {d.sourceType ? ` · ${sourceTypeLabel(d.sourceType)}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </div>
   );
 }
@@ -281,6 +407,32 @@ function FollowUps({ state, actions, busy, selection, clearSelection, cite }: Pi
   );
 }
 
+/* ---------------- export ---------------- */
+
+/** The report as Markdown with numbered references to the claims and their sources. */
+function exportMarkdown(text: string, nums: Map<string, number>, resolve: (label: string) => ClaimRef | null, docs: SourceDoc[], checked: string): string {
+  const body = text.replace(/\[(C\d{1,3})\]/g, (m, label: string) => (nums.has(label) ? `[${nums.get(label)}]` : m));
+  const refs = [...nums.entries()]
+    .sort((a, b) => a[1] - b[1])
+    .map(([label, n]) => {
+      const c = resolve(label)?.claim;
+      if (!c) return `${n}. （找不到這個主張）`;
+      const urls = [...new Set(c.evidence.map((e) => e.url))].slice(0, 3);
+      return `${n}. ${c.text}（${CLAIM_STATUS_LABEL[c.status]}）${urls.length ? ' — ' + urls.join('、') : ''}`;
+    });
+  const sources = docs.filter((d) => !d.duplicateOf).map((d) => `- [${d.title || d.publisher}](${d.url}) — ${d.publisher}${d.publishedDate ? '，' + d.publishedDate : ''}`);
+  return [body, '', '## 引用', '', ...refs, '', '## 參考資料', '', `資料查證日期：${checked}。`, '', ...sources, ''].join('\n');
+}
+
+function download(name: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/markdown;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /* ---------------- the report ---------------- */
 
 export function Report({ state, actions, busy }: ScreenProps) {
@@ -289,13 +441,20 @@ export function Report({ state, actions, busy }: ScreenProps) {
   const { order, slots } = state;
   const claims = useMemo(() => claimIndex({ order, slots }), [order, slots]);
   const dates = useMemo(() => new Map(state.docs.map((d) => [d.docId, d.publishedDate])), [state.docs]);
+  const [mode, setModeState] = useState<Mode>(loadMode);
   const [open, setOpen] = useState<OpenCite | null>(null);
   const [selection, setSelection] = useState('');
   const [showVersion, setShowVersion] = useState<number | null>(null);
   const article = useRef<HTMLElement>(null);
+  const setMode = (m: Mode) => {
+    setModeState(m);
+    saveMode(m);
+  };
+  const verify = mode === 'verify';
 
   const blocks = useMemo(() => (syn.status === 'ready' ? parseMarkdown(syn.text) : []), [syn.status, syn.text]);
-  const sections = useMemo(() => sectionsOf(blocks), [blocks]);
+  const doc = useMemo(() => docOf(blocks, p.topic), [blocks, p.topic]);
+  const nums = useMemo(() => citeNumbers(blocks), [blocks]);
 
   const resolve = useCallback(
     (label: string, citations: Record<string, CitationRef> = syn.citations): ClaimRef | null => {
@@ -308,25 +467,26 @@ export function Report({ state, actions, busy }: ScreenProps) {
     strengthOf(labels.map((l) => resolve(l)?.claim).filter((c): c is Claim => !!c), dates);
 
   const citeFor = (blockIndex: number): CiteRenderer =>
-    function CiteChip(label: string) {
+    function Cite(label: string) {
       const ref = resolve(label);
-      if (!ref) return <span className="cite plain">{label.slice(1)}</span>;
+      const n = nums.get(label) ?? Number(label.slice(1));
+      if (!ref) return <span className={verify ? 'cite plain' : 'ref plain'}>{n}</span>;
       const on = open?.block === blockIndex && open.label === label;
       return (
         <button
           type="button"
-          className={'cite ' + ref.claim.status + (on ? ' on' : '')}
+          className={verify ? 'cite ' + ref.claim.status + (on ? ' on' : '') : 'ref' + (on ? ' on' : '')}
           aria-expanded={on}
-          aria-label={`引用 ${label.slice(1)}：${CLAIM_STATUS_LABEL[ref.claim.status]}`}
+          aria-label={`引用 ${n}：${CLAIM_STATUS_LABEL[ref.claim.status]}`}
           title={ref.claim.text}
           onClick={() => setOpen(on ? null : { block: blockIndex, label, idx: 0 })}
         >
-          {label.slice(1)}
+          {n}
         </button>
       );
     };
   const qaCite = (citations: Record<string, CitationRef>): CiteRenderer =>
-    function QaChip(label: string) {
+    function QaCite(label: string) {
       const ref = resolve(label, citations);
       return ref ? (
         <a className={'cite ' + ref.claim.status} href={projectPath(p.projectId, 'evidence', { claim: ref.claim.claimId })} title={ref.claim.text}>
@@ -344,18 +504,22 @@ export function Report({ state, actions, busy }: ScreenProps) {
     setSelection(text.slice(0, 500));
   };
 
-  const publishers = new Set(state.docs.filter((d) => !d.duplicateOf).map((d) => d.publisher)).size;
+  const originals = state.docs.filter((d) => !d.duplicateOf);
+  const publishers = new Set(originals.map((d) => d.publisher)).size;
+  const duplicates = state.docs.length - originals.length;
   const version = syn.version || p.version || 1;
 
   if (syn.status !== 'ready') {
     return (
       <main className="page narrow" id="main">
         {syn.status === 'streaming' ? (
-          <div className="panel streaming">
-            <p className="small muted" style={{ marginBottom: 12 }}>
+          <div className="paper streaming">
+            <p className="small muted" style={{ marginBottom: 16 }}>
               Supervisor 正在撰寫報告，寫完後會逐句查核再定稿…
             </p>
-            <Markdown source={syn.text} caret={p.status === 'running'} />
+            <div className="report-md streaming-refs">
+              <Markdown source={syn.text} caret={p.status === 'running'} cite={(label) => <span className="ref plain">{label.slice(1)}</span>} />
+            </div>
           </div>
         ) : (
           <div className="panel pad stack">
@@ -387,38 +551,100 @@ export function Report({ state, actions, busy }: ScreenProps) {
     );
   }
 
-  const summary = sections.find((s) => SUMMARY_HEADING.test(s.title)) ?? null;
-  const rest = sections.filter((s) => s !== summary);
+  const summary = doc.sections.find((s) => SUMMARY_HEADING.test(s.title)) ?? null;
+  const hasOpenSection = doc.sections.some((s) => OPEN_HEADING.test(s.title));
+
+  // A contested claim gets its side-by-side box once, after the first body block that cites it.
+  const conflictAt = new Map<number, Claim>();
+  {
+    const seen = new Set<string>();
+    for (const s of doc.sections) {
+      if (s === summary) continue;
+      for (const { block, index } of s.blocks) {
+        for (const l of blockLabels(block)) {
+          const c = resolve(l)?.claim;
+          if (c?.status === 'contested' && !seen.has(c.claimId) && !conflictAt.has(index)) {
+            seen.add(c.claimId);
+            conflictAt.set(index, c);
+          }
+        }
+      }
+    }
+  }
+
+  const content = (b: Block, index: number): ReactNode => {
+    const cite = citeFor(index);
+    switch (b.t) {
+      case 'h':
+        return <h3 className="r-h3">{renderInline(b.c, cite)}</h3>;
+      case 'table':
+        return (
+          <div className="rtable">
+            <MdTable b={b} cite={cite} />
+          </div>
+        );
+      case 'ul':
+      case 'ol': {
+        const Tag = b.t;
+        const labelled = b.items.map((it) => leadLabel(it));
+        return (
+          <Tag className={'rlist' + (labelled.every(Boolean) ? ' labelled' : '')}>
+            {b.items.map((it, i) => {
+              const l = labelled[i];
+              return (
+                <li key={i}>
+                  {l ? (
+                    <>
+                      <strong className="lbl">{l.label}</strong>
+                      <span>{renderInline(l.rest, cite)}</span>
+                    </>
+                  ) : (
+                    renderInline(it, cite)
+                  )}
+                </li>
+              );
+            })}
+          </Tag>
+        );
+      }
+      case 'p': {
+        const bottom = boldParagraph(b);
+        if (bottom) return <p className="bottomline">{renderInline(bottom, cite)}</p>;
+        const take = leadLabel(b.c, TAKEAWAY);
+        if (take)
+          return (
+            <div className="takeaway">
+              <span className="tk">{take.label}</span>
+              <p>{renderInline(take.rest, cite)}</p>
+            </div>
+          );
+        return <p className="rtext">{renderInline(b.c, cite)}</p>;
+      }
+    }
+  };
 
   const renderBlock = (b: Block, index: number): ReactNode => {
-    const labels = blockLabels(b);
-    const cite = citeFor(index);
-    const s = labels.length ? strengthFor(labels) : null;
-    const content =
-      b.t === 'p' ? (
-        <p className="rtext">{renderInline(b.c, cite)}</p>
-      ) : b.t === 'h' ? (
-        <h3 className="r-h4">{renderInline(b.c, cite)}</h3>
-      ) : (
-        (() => {
-          const Tag = b.t === 'ul' ? 'ul' : 'ol';
-          return (
-            <Tag className="rtext">
-              {b.items.map((it, i) => (
-                <li key={i}>{renderInline(it, cite)}</li>
-              ))}
-            </Tag>
-          );
-        })()
-      );
     const openRef = open?.block === index ? resolve(open.label) : null;
-    const contested = s?.strength === 'contested' ? labels.map((l) => resolve(l)?.claim).find((c) => c?.status === 'contested') : undefined;
+    const card =
+      openRef && open ? <CiteCard refd={openRef} num={nums.get(open.label) ?? 0} idx={open.idx} setIdx={(i) => setOpen({ ...open, idx: i })} onClose={() => setOpen(null)} state={state} /> : null;
+    const contested = conflictAt.get(index);
+    if (!verify) {
+      return (
+        <Fragment key={index}>
+          {content(b, index)}
+          {card}
+          {contested ? <ConflictBox claim={contested} /> : null}
+        </Fragment>
+      );
+    }
+    const labels = blockLabels(b);
+    const s = labels.length ? strengthFor(labels) : null;
     return (
       <Fragment key={index}>
         <div className="rblock">
           <div className="txt">
-            {content}
-            {openRef && open ? <CiteCard refd={openRef} label={open.label} idx={open.idx} setIdx={(i) => setOpen({ ...open, idx: i })} onClose={() => setOpen(null)} state={state} /> : null}
+            {content(b, index)}
+            {card}
           </div>
           {s && s.strength !== 'none' ? (
             <aside className="margin" aria-label="這段的證據">
@@ -442,71 +668,52 @@ export function Report({ state, actions, busy }: ScreenProps) {
     );
   };
 
-  const summaryItems = (s: Section): { inline: Inline[]; index: number }[] =>
-    s.blocks.flatMap(({ block, index }) => {
-      if (block.t === 'ul' || block.t === 'ol') return block.items.map((it) => ({ inline: it, index }));
-      if (block.t === 'p') {
-        // one line per sentence, so each statement carries its own mark
-        const text = plainText(block.c).length > 0 ? block.c : [];
-        const out: Inline[][] = [[]];
-        for (const n of text) {
-          if (n.t === 'text') {
-            const parts = n.v.split(/(?<=[。！？!?])/u);
-            parts.forEach((part, i) => {
-              if (i > 0) out.push([]);
-              if (part) out[out.length - 1].push({ t: 'text', v: part });
-            });
-          } else out[out.length - 1].push(n);
-        }
-        // a citation right after a sentence end belongs to that sentence
-        for (let i = 1; i < out.length; i++) {
-          while (out[i].length && out[i][0].t === 'cite') out[i - 1].push(out[i].shift()!);
-        }
-        return out.filter((x) => plainText(x).trim()).map((inline) => ({ inline, index }));
-      }
-      return [];
-    });
-
+  const jump = (id: string) => (e: MouseEvent) => {
+    e.preventDefault();
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
   const tocStrength = (s: Section) => strengthFor(s.blocks.flatMap(({ block }) => blockLabels(block)));
   const prev = state.history[state.history.length - 1];
+  const checked = ymd(syn.createdAt);
+  const showLimits = !hasOpenSection && (syn.contradictions.length || syn.gaps.length || syn.followUps.length);
 
   return (
-    <div className="reader">
+    <div className={'reader mode-' + mode}>
       <nav className="toc" aria-label="報告目錄">
         <h2>目錄</h2>
         <ol>
-          {sections.map((s) => {
-            const st = tocStrength(s);
+          {doc.sections.map((s) => {
+            const st = verify ? tocStrength(s) : null;
             return (
               <li key={s.id}>
-                <a href={'#' + s.id} onClick={(e) => { e.preventDefault(); document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>
-                  <span>{s === summary ? '執行摘要' : s.title || '前言'}</span>
-                  {st.strength !== 'none' ? <BarsFor s={st} /> : null}
+                <a href={'#' + s.id} onClick={jump(s.id)}>
+                  <span>{s.title || '前言'}</span>
+                  {st && st.strength !== 'none' ? <BarsFor s={st} /> : null}
                 </a>
               </li>
             );
           })}
-          {syn.contradictions.length || syn.gaps.length ? (
+          {showLimits ? (
             <li>
-              <a href="#limits" onClick={(e) => { e.preventDefault(); document.getElementById('limits')?.scrollIntoView({ behavior: 'smooth' }); }}>
+              <a href="#limits" onClick={jump('limits')}>
                 限制與未解衝突
               </a>
             </li>
           ) : null}
           <li>
-            <a href="#sources" onClick={(e) => { e.preventDefault(); document.getElementById('sources')?.scrollIntoView({ behavior: 'smooth' }); }}>
-              來源（{state.docs.length}）
+            <a href="#sources" onClick={jump('sources')}>
+              參考資料（{originals.length}）
             </a>
           </li>
           <li>
-            <a href="#followup" onClick={(e) => { e.preventDefault(); document.getElementById('followup')?.scrollIntoView({ behavior: 'smooth' }); }}>
+            <a href="#followup" onClick={jump('followup')}>
               追問{state.qa.length ? `（${state.qa.length}）` : ''}
             </a>
           </li>
         </ol>
         <div className="ver">
           <span>
-            第 {version} 版，{ymd(syn.createdAt)}
+            第 {version} 版，{checked}
           </span>
           {prev ? (
             <button type="button" className="linkbtn" style={{ textAlign: 'left' }} onClick={() => { setShowVersion(showVersion === prev.version ? null : prev.version); setTimeout(() => document.getElementById('versions')?.scrollIntoView({ behavior: 'smooth' }), 0); }}>
@@ -521,49 +728,50 @@ export function Report({ state, actions, busy }: ScreenProps) {
         </div>
       </nav>
 
-      <article className="article" ref={article} onMouseUp={onSelect} onKeyUp={onSelect} id="main">
-        <header>
-          <h1>{p.topic}</h1>
-          <div className="meta-row">
-            <span>{ymd(syn.createdAt)} 完成</span>
+      <article className="paper article" ref={article} onMouseUp={onSelect} onKeyUp={onSelect} id="main">
+        <header className="rhead">
+          <p className="crumb">
+            研究報告 <span aria-hidden="true">/</span> 第 {version} 版
+          </p>
+          <h1>{doc.title}</h1>
+          {doc.dek ? <p className="dek">{renderInline(doc.dek, citeFor(-1))}</p> : null}
+          {doc.title !== p.topic ? <p className="question">研究問題：{p.topic}</p> : null}
+          <p className="byline">
+            <span>God Eye Researcher</span>
+            <span>{checked}</span>
+            {p.brief?.depth ? <span>{DEPTH_NAME[p.brief.depth]}深度</span> : null}
             <span>
-              {state.docs.length} 個來源，其中 {publishers} 個獨立發布者
+              {originals.length} 個來源、{publishers} 個獨立發布者
             </span>
             {p.brief?.audience ? <span>給{p.brief.audience}</span> : null}
+          </p>
+          <div className="rtools">
+            <button type="button" className={'btn small' + (verify ? ' primary' : '')} aria-pressed={verify} onClick={() => setMode(verify ? 'read' : 'verify')}>
+              {verify ? '回到閱讀模式' : '查證模式'}
+            </button>
+            <button type="button" className="btn small" onClick={() => download(`${p.projectId}-v${version}.md`, exportMarkdown(syn.text, nums, (l) => resolve(l), state.docs, checked))}>
+              下載 Markdown
+            </button>
+            {!verify && syn.verification ? <span className="checkline">{checkLine(syn.verification)}</span> : null}
           </div>
-          <MarkLegend />
+          {verify ? (
+            <>
+              <MarkLegend />
+              {syn.verification ? <VerificationBar v={syn.verification} /> : null}
+            </>
+          ) : null}
         </header>
+
         {version > 1 && syn.changes ? (
           <div className="banner update-note">
             第 {version} 版：只找 {p.since ?? '上一版'} 之後的資料，新增 {syn.changes.newClaims} 個主張、取代 {syn.changes.updatedClaims} 個舊主張。
           </div>
         ) : null}
-        {syn.verification ? <VerificationBar v={syn.verification} /> : null}
 
-        {summary ? (
-          <section id={summary.id} className="panel summary" aria-labelledby="sum-h">
-            <h2 id="sum-h">執行摘要</h2>
-            <ol>
-              {summaryItems(summary).map(({ inline, index }, i) => {
-                const s = strengthFor(labelsIn(inline));
-                return (
-                  <li key={i}>
-                    {s.strength !== 'none' ? <BarsFor s={s} size="md" /> : <Bars strength="none" size="md" label="沒有引用" />}
-                    <span>{renderInline(inline, citeFor(index))}</span>
-                  </li>
-                );
-              })}
-            </ol>
-            {open && summary.blocks.some((b) => b.index === open.block) && resolve(open.label) ? (
-              <CiteCard refd={resolve(open.label)!} label={open.label} idx={open.idx} setIdx={(i) => setOpen({ ...open, idx: i })} onClose={() => setOpen(null)} state={state} />
-            ) : null}
-          </section>
-        ) : null}
-
-        {rest.map((s) => (
-          <section key={s.id} className="stack-lg" aria-labelledby={s.heading ? s.id : undefined}>
-            {s.heading ? (
-              <h2 id={s.id} className="r-h">
+        {doc.sections.map((s) => (
+          <section key={s.id} id={s.id} className={'rsec' + (s === summary ? ' exec' : '')} aria-labelledby={s.title ? s.id + '-h' : undefined}>
+            {s.title ? (
+              <h2 id={s.id + '-h'} className="r-h">
                 {s.title}
               </h2>
             ) : null}
@@ -571,8 +779,11 @@ export function Report({ state, actions, busy }: ScreenProps) {
           </section>
         ))}
 
-        {syn.contradictions.length || syn.gaps.length || syn.followUps.length ? (
-          <section id="limits" className="panel lists" aria-label="限制與未解衝突">
+        {showLimits ? (
+          <section id="limits" className="rsec" aria-labelledby="limits-h">
+            <h2 id="limits-h" className="r-h">
+              限制與未解衝突
+            </h2>
             {(
               [
                 ['矛盾', syn.contradictions],
@@ -583,8 +794,8 @@ export function Report({ state, actions, busy }: ScreenProps) {
               .filter(([, l]) => l.length)
               .map(([h, l]) => (
                 <div key={h}>
-                  <h3>{h}</h3>
-                  <ul>
+                  <h3 className="r-h3">{h}</h3>
+                  <ul className="rlist">
                     {l.map((t, i) => (
                       <li key={i}>{renderInline(parseInline(t))}</li>
                     ))}
@@ -594,13 +805,18 @@ export function Report({ state, actions, busy }: ScreenProps) {
           </section>
         ) : null}
 
-        <section id="sources" className="stack" aria-labelledby="src-h" style={{ maxWidth: 720 }}>
+        <section id="sources" className="rsec refs" aria-labelledby="src-h">
           <h2 id="src-h" className="r-h">
-            來源
+            參考資料
           </h2>
-          <SourceList docs={state.docs} />
+          <p className="refnote">
+            資料查證日期：{checked}。共 {originals.length} 個來源、{publishers} 個獨立發布者{duplicates ? `；另有 ${duplicates} 篇轉載已合併` : ''}。
+          </p>
+          {verify ? <SourceList docs={state.docs} /> : <SourcesByKind docs={state.docs} />}
         </section>
+      </article>
 
+      <div className="reader-after">
         {state.history.length ? (
           <section id="versions" className="history-box" aria-label="較早的版本">
             <h2 className="sec-h">較早的版本</h2>
@@ -612,7 +828,7 @@ export function Report({ state, actions, busy }: ScreenProps) {
                   <summary>
                     第 {h.version} 版{h.createdAt ? `，${ymd(h.createdAt)}` : ''}
                   </summary>
-                  <div style={{ marginTop: 12 }}>
+                  <div className="report-md" style={{ marginTop: 12 }}>
                     <Markdown source={h.report} />
                   </div>
                 </details>
@@ -621,7 +837,7 @@ export function Report({ state, actions, busy }: ScreenProps) {
         ) : null}
 
         <FollowUps state={state} actions={actions} busy={busy} selection={selection} clearSelection={() => setSelection('')} cite={qaCite} />
-      </article>
+      </div>
     </div>
   );
 }

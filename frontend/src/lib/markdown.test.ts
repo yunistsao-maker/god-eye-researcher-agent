@@ -23,6 +23,23 @@ describe('parseMarkdown', () => {
     expect(blocks[4]).toEqual({ t: 'ol', items: [[{ t: 'text', v: '第一' }], [{ t: 'a', href: 'https://example.com/a', v: '來源' }]] });
   });
 
+  it('parses a title and pipe tables with alignment, citations and escaped pipes', () => {
+    const blocks = parseMarkdown(
+      ['# 標題 — 副標', '範圍說明。', '', '| 模式 | 成本 | 備註 |', '| --- | ---: | :-: |', '| 雲端 | 低 [C1] | a \\| b |', '| 地端 |', '', '之後的段落。'].join('\n'),
+    );
+    expect(blocks.map((b) => b.t)).toEqual(['h', 'p', 'table', 'p']);
+    expect(blocks[0]).toMatchObject({ t: 'h', level: 2 });
+    const table = blocks[2] as Extract<(typeof blocks)[number], { t: 'table' }>;
+    expect(table.align).toEqual([null, 'right', 'center']);
+    expect(table.head.map((c) => c[0])).toEqual([{ t: 'text', v: '模式' }, { t: 'text', v: '成本' }, { t: 'text', v: '備註' }]);
+    expect(table.rows[0][1]).toEqual([{ t: 'text', v: '低' }, { t: 'cite', label: 'C1' }]);
+    expect(table.rows[0][2]).toEqual([{ t: 'text', v: 'a | b' }]);
+    expect(table.rows[1]).toEqual([[{ t: 'text', v: '地端' }], [], []]); // short rows are padded
+    // A header without its separator row yet (still streaming) stays a paragraph.
+    expect(parseMarkdown('| 模式 | 成本 |').map((b) => b.t)).toEqual(['p']);
+    expect(html('| a | b |\n| --- | --- |\n| 1 | 2 |')).toContain('<table><thead><tr><th scope="col">a</th>');
+  });
+
   it('keeps unfinished syntax literal while it streams in', () => {
     expect(parseInline('還沒寫完的 **粗')).toEqual([{ t: 'text', v: '還沒寫完的 **粗' }]);
     expect(parseInline('[來源](https://exa')).toEqual([{ t: 'text', v: '[來源](https://exa' }]);
@@ -97,13 +114,13 @@ describe('claim citations', () => {
 
   it('renders citations with the given renderer, or as plain markers', () => {
     const plain = renderToStaticMarkup(createElement(InlineMarkdown, { text: '主張 [C3]' }));
-    expect(plain).toBe('主張<span class="cite-run"><span class="cite plain">C3</span></span>');
+    expect(plain).toBe('主張<span class="cite-run"><span class="cite-refs"><span class="cite plain">C3</span></span></span>');
     // citations and the closing punctuation after them wrap together
     const run = renderToStaticMarkup(createElement(InlineMarkdown, { text: '主張 [C1][C2]。下一句' }));
-    expect(run).toBe('主張<span class="cite-run"><span class="cite plain">C1</span><span class="cite plain">C2</span>。</span>下一句');
+    expect(run).toBe('主張<span class="cite-run"><span class="cite-refs"><span class="cite plain">C1</span><span class="cite plain">C2</span></span>。</span>下一句');
     const custom = renderToStaticMarkup(
       createElement(Markdown, { source: '- 一 [C1]', cite: (label: string) => createElement('button', { className: 'cite' }, label) }),
     );
-    expect(custom).toContain('<li>一<span class="cite-run"><button class="cite">C1</button></span></li>');
+    expect(custom).toContain('<li>一<span class="cite-run"><span class="cite-refs"><button class="cite">C1</button></span></span></li>');
   });
 });

@@ -1,8 +1,8 @@
 /*
- * A tiny markdown subset for the synthesis report: ## / ### headings, paragraphs, "- " and "1. "
- * lists, **bold**, `code`, [text](https://…) links and claim citations [C3]. It parses to a small AST that the Markdown
- * component renders as React text nodes, so nothing in the source is ever interpreted as HTML.
- * Any other syntax (including raw HTML and links to other schemes) stays literal text.
+ * A tiny markdown subset for the synthesis report: # / ## / ### headings, paragraphs, "- " and "1. "
+ * lists, pipe tables, **bold**, `code`, [text](https://…) links and claim citations [C3]. It parses to a
+ * small AST that the Markdown component renders as React text nodes, so nothing in the source is ever
+ * interpreted as HTML. Any other syntax (including raw HTML and links to other schemes) stays literal text.
  */
 
 export type Inline =
@@ -13,10 +13,14 @@ export type Inline =
   /** A claim citation such as [C3]; `label` is "C3". */
   | { t: 'cite'; label: string };
 
+export type Align = 'left' | 'center' | 'right' | null;
+
 export type Block =
-  | { t: 'h'; level: 3 | 4; c: Inline[] }
+  /** `#` → 2 (a report's title), `##` → 3 (sections), `###` and deeper → 4. */
+  | { t: 'h'; level: 2 | 3 | 4; c: Inline[] }
   | { t: 'p'; c: Inline[] }
-  | { t: 'ul' | 'ol'; items: Inline[][] };
+  | { t: 'ul' | 'ol'; items: Inline[][] }
+  | { t: 'table'; head: Inline[][]; align: Align[]; rows: Inline[][][] };
 
 /** Returns a normalized http(s) URL, or null for anything else (javascript:, data:, relative…). */
 export function safeHref(raw: string): string | null {
@@ -77,6 +81,24 @@ function joinLines(lines: string[]): string {
   return s;
 }
 
+const TABLE_ROW = /^\s{0,3}\|.*\|\s*$/;
+const TABLE_SEP = /^\s{0,3}\|?(\s*:?-+:?\s*\|)+\s*(:?-+:?\s*)?\|?\s*$/;
+
+/** The cells of a pipe-table row; `\|` is a literal pipe. */
+export function tableCells(line: string): string[] {
+  let body = line.trim();
+  if (body.startsWith('|')) body = body.slice(1);
+  if (body.endsWith('|') && !body.endsWith('\\|')) body = body.slice(0, -1);
+  return body.split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, '|'));
+}
+
+function alignOf(cell: string): Align {
+  const c = cell.trim();
+  const left = c.startsWith(':');
+  const right = c.endsWith(':');
+  return left && right ? 'center' : right ? 'right' : left ? 'left' : null;
+}
+
 export function parseMarkdown(src: string): Block[] {
   const blocks: Block[] = [];
   let para: string[] = [];
@@ -91,7 +113,9 @@ export function parseMarkdown(src: string): Block[] {
     list = null;
   };
 
-  for (const line of src.replace(/\r\n?/g, '\n').split('\n')) {
+  const lines = src.replace(/\r\n?/g, '\n').split('\n');
+  for (let n = 0; n < lines.length; n++) {
+    const line = lines[n];
     if (!line.trim()) {
       flushPara();
       flushList();
@@ -101,7 +125,26 @@ export function parseMarkdown(src: string): Block[] {
     if (h) {
       flushPara();
       flushList();
-      blocks.push({ t: 'h', level: h[1].length >= 3 ? 4 : 3, c: parseInline(h[2]) });
+      blocks.push({ t: 'h', level: h[1].length === 1 ? 2 : h[1].length === 2 ? 3 : 4, c: parseInline(h[2]) });
+      continue;
+    }
+    // A pipe table: a header row, a separator row, then rows (a streaming table may have no rows yet).
+    if (TABLE_ROW.test(line) && n + 1 < lines.length && TABLE_SEP.test(lines[n + 1])) {
+      flushPara();
+      flushList();
+      const headCells = tableCells(line);
+      const align = tableCells(lines[n + 1]).map(alignOf);
+      const width = headCells.length;
+      const rows: Inline[][][] = [];
+      n += 2;
+      while (n < lines.length && TABLE_ROW.test(lines[n])) {
+        const cells = tableCells(lines[n]).slice(0, width);
+        while (cells.length < width) cells.push('');
+        rows.push(cells.map((c) => parseInline(c)));
+        n++;
+      }
+      n--;
+      blocks.push({ t: 'table', head: headCells.map((c) => parseInline(c)), align: Array.from({ length: width }, (_, i) => align[i] ?? null), rows });
       continue;
     }
     const li = /^\s{0,3}(?:([-*])|(\d{1,3})[.)])\s+(.*)$/.exec(line);

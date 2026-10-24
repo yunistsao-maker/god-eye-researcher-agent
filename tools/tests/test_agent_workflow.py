@@ -74,7 +74,7 @@ class WorkflowLlm:
         ids = [c["claimId"] for f in findings for c in f.get("claims") or []]
         return ReviewDraft(coverage=[CoverageDraft(requirementId="q1", status="covered", claimIds=ids[:1])], followUps=follow)
 
-    def report(self, topic, requirements, catalog, review, words=800, activity=None, on_text=None, steering=None, update=None):
+    def report(self, topic, requirements, catalog, review, words=800, activity=None, on_text=None, steering=None, update=None, brief=""):
         rows = json.loads(catalog)
         self.reports.append({"steering": steering, "update": update, "rows": rows})
         text = "## 摘要\n\n" + "".join(f"{r['claim']} [{r['label']}]。" for r in rows) + "\n\n## 尚待研究\n\n- 還有待確認的部分需要後續研究。"

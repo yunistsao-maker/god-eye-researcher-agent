@@ -82,7 +82,7 @@ function citedLabels(report: string): string[] {
   const out: string[] = [];
   const walk = (list: ReturnType<typeof parseMarkdown>) => {
     for (const b of list) {
-      const lines = 'items' in b ? b.items : [b.c];
+      const lines = b.t === 'table' ? [...b.head, ...b.rows.flat()] : 'items' in b ? b.items : [b.c];
       for (const line of lines) for (const n of line) if (n.t === 'cite') out.push(n.label);
     }
   };
@@ -121,7 +121,7 @@ describe('evidence contract', () => {
     });
     const got = evidenceSummary(s);
     expect(got).toMatchObject(expected);
-    expect(got.verification).toMatchObject({ citedSentences: 5, supported: 3, removed: 1, precisionBefore: 0.6, precisionAfter: 1 });
+    expect(got.verification).toMatchObject({ citedSentences: 7, supported: 4, removed: 2, precisionBefore: 0.571, precisionAfter: 1 });
     expect(got.verification!.deadUrls).toHaveLength(1);
     expect(s.agents.supervisor.phase).toBe('done');
     expect(s.log.some((l) => l.text.includes('coverage.updated'))).toBe(true);
@@ -131,6 +131,10 @@ describe('evidence contract', () => {
     const s = hydrate(unwrapToolResult({ content: [{ type: 'text', text: JSON.stringify(evidence.projectGet) }] }) as never);
     expect(evidenceSummary(s)).toMatchObject(expected);
     expect(Object.keys(s.synthesis.citations).sort()).toEqual(['C1', 'C2', 'C3']);
+    // The report layout the reader renders: a title, a bold bottom line, a 結論 lead's section and a table.
+    const blocks = parseMarkdown(s.synthesis.text);
+    expect(blocks[0]).toMatchObject({ t: 'h', level: 2 });
+    expect(blocks.some((b) => b.t === 'table' && b.rows.length === 1)).toBe(true);
     const contested = [...claimIndex(s).values()].find((r) => r.claim.status === 'contested')!;
     expect(contested.claim.evidence.map((e) => e.stance)).toEqual(['supports', 'contradicts']);
   });

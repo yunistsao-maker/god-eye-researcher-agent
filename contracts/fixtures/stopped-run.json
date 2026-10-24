@@ -3,7 +3,7 @@
   {
    "type": "project.created",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T17:41:29.089Z",
+   "ts": "2026-10-24T07:36:46.368Z",
    "data": {
     "topic": "半導體導入生成式 AI",
     "parentProjectId": null,
@@ -23,7 +23,7 @@
   {
    "type": "plan.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T17:41:29.098Z",
+   "ts": "2026-10-24T07:36:46.380Z",
    "data": {
     "subQuestions": [
      {
@@ -83,7 +83,7 @@
   {
    "type": "finding.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T17:41:29.127Z",
+   "ts": "2026-10-24T07:36:46.419Z",
    "data": {
     "finding": {
      "findingId": "f-1",
@@ -143,7 +143,7 @@
   {
    "type": "relation.added",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T17:41:29.127Z",
+   "ts": "2026-10-24T07:36:46.419Z",
    "data": {
     "entities": [
      {
@@ -189,7 +189,7 @@
   {
    "type": "ui.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T17:41:29.148Z",
+   "ts": "2026-10-24T07:36:46.441Z",
    "data": {
     "findingId": "f-1",
     "spec": {
@@ -231,7 +231,7 @@
   {
    "type": "finding.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T17:41:29.173Z",
+   "ts": "2026-10-24T07:36:46.467Z",
    "data": {
     "finding": {
      "findingId": "f-2",
@@ -283,7 +283,7 @@
   {
    "type": "relation.added",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T17:41:29.173Z",
+   "ts": "2026-10-24T07:36:46.467Z",
    "data": {
     "entities": [
      {
@@ -341,7 +341,7 @@
   {
    "type": "ui.ready",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T17:41:29.196Z",
+   "ts": "2026-10-24T07:36:46.488Z",
    "data": {
     "findingId": "f-2",
     "spec": {
@@ -371,7 +371,7 @@
   {
    "type": "project.stopped",
    "projectId": "p-20261022-0a0b0c0d",
-   "ts": "2026-10-23T17:41:29.258Z",
+   "ts": "2026-10-24T07:36:46.554Z",
    "data": {
     "stats": {
      "findings": 2,
@@ -455,12 +455,12 @@
    "topic": "半導體導入生成式 AI",
    "status": "stopped",
    "parentProjectId": null,
-   "createdAt": "2026-10-23T17:41:29Z",
-   "updatedAt": "2026-10-23T17:41:29Z",
+   "createdAt": "2026-10-24T07:36:46Z",
+   "updatedAt": "2026-10-24T07:36:46Z",
    "findingCount": 2,
    "version": 1,
    "notify": false,
-   "stoppedAt": "2026-10-23T17:41:29Z",
+   "stoppedAt": "2026-10-24T07:36:46Z",
    "brief": {
     "depth": "standard"
    },
