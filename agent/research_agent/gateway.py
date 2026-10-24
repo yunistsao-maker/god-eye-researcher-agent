@@ -44,6 +44,9 @@ class ToolsGateway:
 
     def call(self, target: str, tool: str, **arguments: Any) -> dict:
         name = f"{target}___{tool}"
+        # The gateway validates arguments against the tool schema and rejects null for typed fields
+        # (e.g. parentProjectId on a new project). The Lambdas treat a missing argument as None.
+        arguments = {k: v for k, v in arguments.items() if v is not None}
         result = self._client.call_tool_sync(f"call-{uuid.uuid4().hex[:12]}", name, arguments)
         text = "".join(c.get("text", "") for c in result.get("content", []) if isinstance(c, dict))
         if result.get("status") == "error" or result.get("isError"):
